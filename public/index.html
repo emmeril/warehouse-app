@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warehouse Management System v4.0</title>
+    <title>Warehouse Management System v4.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -130,6 +130,24 @@
         }
         
         [x-cloak] { display: none !important; }
+        
+        /* QR Code in label */
+        .qr-label {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .qr-label::after {
+            content: 'QR';
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            font-size: 8px;
+            color: #666;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen" x-data="warehouseApp()" x-init="init()" x-cloak>
@@ -142,7 +160,7 @@
                         <i class="fas fa-warehouse mr-3 text-blue-600"></i>
                         Warehouse Management System
                     </h1>
-                    <p class="text-gray-600 mt-2">Sistem Manajemen Gudang Terintegrasi - v4.0 dengan QR Code Scanner</p>
+                    <p class="text-gray-600 mt-2">Sistem Manajemen Gudang Terintegrasi - v4.1 dengan QR Code Scanner</p>
                 </div>
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:block text-right">
@@ -157,12 +175,6 @@
                     <button @click="openQRScanModal" class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-sm hover:shadow-lg flex items-center">
                         <i class="fas fa-qrcode mr-2"></i>
                         <span class="hidden sm:inline">Scan QR</span>
-                    </button>
-                    
-                    <!-- Generate QR Button -->
-                    <button @click="openQRGenerateModal" class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-sm hover:shadow-lg flex items-center">
-                        <i class="fas fa-qr-code mr-2"></i>
-                        <span class="hidden sm:inline">Generate QR</span>
                     </button>
                     
                     <!-- Export CSV Button -->
@@ -652,13 +664,6 @@
                                                     <i class="fas fa-history"></i>
                                                 </button>
                                                 <button 
-                                                    @click="generateSingleQR(item)"
-                                                    class="text-purple-600 hover:text-purple-900 transition p-1"
-                                                    title="Generate QR Code"
-                                                >
-                                                    <i class="fas fa-qrcode"></i>
-                                                </button>
-                                                <button 
                                                     @click="openLabelModal(item)"
                                                     class="text-green-600 hover:text-green-900 transition p-1"
                                                     title="Cetak Label"
@@ -868,7 +873,7 @@
                 <div class="mb-4 md:mb-0">
                     <p class="text-gray-600">
                         <i class="fas fa-database mr-1"></i>
-                        Warehouse Management System v4.0
+                        Warehouse Management System v4.1
                     </p>
                     <p class="text-gray-500 text-sm mt-1">
                         Dibuat dengan Express.js, SQLite, Tailwind CSS, Alpine.js, dan QR Code Scanner
@@ -1086,83 +1091,13 @@
                         <h5 class="font-bold text-blue-800 mb-3">Quick Update via QR:</h5>
                         
                         <!-- Quick +/- Buttons -->
-                        <div class="flex space-x-2 mb-3">
-                            <button 
-                                @click="qrQuickUpdate(-10)"
-                                class="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
-                            >
-                                <i class="fas fa-minus mr-1"></i> -10
-                            </button>
-                            <button 
-                                @click="qrQuickUpdate(-5)"
-                                class="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
-                            >
-                                <i class="fas fa-minus mr-1"></i> -5
-                            </button>
-                            <button 
-                                @click="qrQuickUpdate(-1)"
-                                class="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
-                            >
-                                <i class="fas fa-minus mr-1"></i> -1
-                            </button>
-                            <button 
-                                @click="qrQuickUpdate(1)"
-                                class="flex-1 bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
-                            >
-                                <i class="fas fa-plus mr-1"></i> +1
-                            </button>
-                            <button 
-                                @click="qrQuickUpdate(5)"
-                                class="flex-1 bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
-                            >
-                                <i class="fas fa-plus mr-1"></i> +5
-                            </button>
-                            <button 
-                                @click="qrQuickUpdate(10)"
-                                class="flex-1 bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
-                            >
-                                <i class="fas fa-plus mr-1"></i> +10
-                            </button>
-                        </div>
+                 
                         
                         <!-- Custom Adjustment -->
-                        <div class="flex space-x-2 mb-3">
-                            <div class="flex-1">
-                                <input
-                                    type="number"
-                                    x-model="qrCustomAdjustment"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                    placeholder="Custom +/-"
-                                >
-                            </div>
-                            <button 
-                                @click="qrQuickUpdate(qrCustomAdjustment)"
-                                :disabled="!qrCustomAdjustment"
-                                class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition"
-                            >
-                                Apply
-                            </button>
-                        </div>
+
                         
                         <!-- Set to Specific Value -->
-                        <div class="flex space-x-2">
-                            <div class="flex-1">
-                                <input
-                                    type="number"
-                                    x-model="qrSetToValue"
-                                    min="0"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                    placeholder="Set ke nilai"
-                                >
-                            </div>
-                            <button 
-                                @click="qrSetToSpecific()"
-                                :disabled="!qrSetToValue"
-                                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition"
-                            >
-                                Set Value
-                            </button>
-                        </div>
+
                         
                         <!-- Detail Update Button -->
                         <div class="mt-4">
@@ -1208,174 +1143,6 @@
                             </button>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Generate QR Code -->
-    <div 
-        x-show="showQRGenerateModal" 
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
-        @click.away="closeQRGenerateModal"
-        x-cloak
-    >
-        <div class="relative top-10 mx-auto p-4 border w-full max-w-4xl shadow-lg rounded-xl bg-white" @click.stop>
-            <div class="flex justify-between items-center pb-4 border-b">
-                <h3 class="text-xl font-bold text-gray-800">
-                    <i class="fas fa-qr-code mr-2 text-blue-600"></i>
-                    Generate QR Codes
-                </h3>
-                <button @click="closeQRGenerateModal" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
-            </div>
-
-            <div class="py-4">
-                <div class="mb-6">
-                    <label class="block text-gray-700 font-semibold text-sm mb-2">
-                        Pilih Items untuk Generate QR Code:
-                    </label>
-                    <div class="max-h-60 overflow-y-auto border border-gray-300 rounded-lg">
-                        <template x-for="item in items" :key="item.id">
-                            <label class="flex items-center p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
-                                <input 
-                                    type="checkbox" 
-                                    x-model="selectedItemsForQR" 
-                                    :value="item.id"
-                                    class="mr-3 rounded text-blue-600 focus:ring-blue-500"
-                                >
-                                <div class="flex-1">
-                                    <span class="font-medium" x-text="item.article"></span>
-                                    <div class="text-sm text-gray-500">
-                                        <span x-text="item.komponen"></span> • 
-                                        <span x-text="'ID: ' + item.id"></span> • 
-                                        <span x-text="'Lokasi: ' + (item.kolom || '-')"></span>
-                                    </div>
-                                </div>
-                                <div class="text-right">
-                                    <button 
-                                        @click="generateSingleQR(item)"
-                                        class="text-blue-600 hover:text-blue-800 text-sm"
-                                    >
-                                        <i class="fas fa-qrcode mr-1"></i>Single
-                                    </button>
-                                </div>
-                            </label>
-                        </template>
-                    </div>
-                    <div class="flex justify-between items-center mt-2">
-                        <p class="text-sm text-gray-500">
-                            <span x-text="selectedItemsForQR.length"></span> item terpilih
-                        </p>
-                        <div class="flex space-x-2">
-                            <button @click="selectAllQRItems" class="text-sm text-blue-600 hover:text-blue-800">
-                                Select All
-                            </button>
-                            <button @click="deselectAllQRItems" class="text-sm text-gray-600 hover:text-gray-800">
-                                Clear All
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4 mb-6">
-                    <div>
-                        <label class="block text-gray-700 font-semibold text-sm mb-2">
-                            QR Code Type
-                        </label>
-                        <select 
-                            x-model="qrGenerateType"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                        >
-                            <option value="full">Full Data (JSON)</option>
-                            <option value="id">ID Only</option>
-                            <option value="url">URL with Details</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 font-semibold text-sm mb-2">
-                            Include in QR:
-                        </label>
-                        <div class="grid grid-cols-2 gap-1">
-                            <label class="flex items-center">
-                                <input type="checkbox" x-model="qrIncludeLocation" class="mr-2 rounded"> Lokasi
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" x-model="qrIncludeStock" class="mr-2 rounded"> Stock Info
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" x-model="qrIncludeMinStock" class="mr-2 rounded"> Min Stock
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" x-model="qrIncludeTimestamp" class="mr-2 rounded" checked> Timestamp
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- QR Code Preview -->
-                <div x-show="singleQRCode" class="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
-                    <div class="flex justify-between items-center mb-3">
-                        <h4 class="font-bold text-gray-700">Preview QR Code:</h4>
-                        <div class="flex space-x-2">
-                            <button 
-                                @click="downloadQRCode(singleQRItem?.id)"
-                                class="text-blue-600 hover:text-blue-800 text-sm"
-                            >
-                                <i class="fas fa-download mr-1"></i>Download
-                            </button>
-                            <button 
-                                @click="printQRCode(singleQRItem)"
-                                class="text-green-600 hover:text-green-800 text-sm"
-                            >
-                                <i class="fas fa-print mr-1"></i>Print
-                            </button>
-                        </div>
-                    </div>
-                    <div class="text-center">
-                        <img :src="singleQRCode" alt="QR Code Preview" class="max-w-xs mx-auto border shadow-sm">
-                        <p class="text-sm font-medium mt-2" x-text="singleQRItem?.article"></p>
-                        <p class="text-xs text-gray-600" x-text="'ID: ' + singleQRItem?.id"></p>
-                        <div class="mt-2 text-xs text-gray-500" x-text="singleQRData"></div>
-                    </div>
-                </div>
-
-                <div class="pt-4 flex space-x-3">
-                    <button
-                        @click="generateBatchQR"
-                        :disabled="selectedItemsForQR.length === 0"
-                        class="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md"
-                    >
-                        <i class="fas fa-qrcode mr-2" :class="{'fa-spinner spinner': generatingQR}"></i>
-                        Generate <span x-text="selectedItemsForQR.length"></span> QR Codes
-                    </button>
-                    
-                    <button
-                        @click="printQRCodes"
-                        :disabled="selectedItemsForQR.length === 0"
-                        class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md"
-                    >
-                        <i class="fas fa-print mr-2"></i>
-                        Print QR Codes
-                    </button>
-                    
-                    <button
-                        @click="closeQRGenerateModal"
-                        class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
-                    >
-                        Batal
-                    </button>
-                </div>
-                
-                <div class="mt-4 text-xs text-gray-500">
-                    <p><i class="fas fa-info-circle mr-1"></i> QR Code berisi data item untuk scanning cepat dan update stok</p>
                 </div>
             </div>
         </div>
@@ -1990,7 +1757,7 @@
                     <div class="mt-6 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
                         <h4 class="font-bold text-gray-700 mb-2">Pratinjau Label:</h4>
                         <div class="flex justify-center">
-                            <div class="border border-gray-300 p-4 bg-white shadow-sm flex flex-col items-center justify-center" 
+                            <div class="border border-gray-300 p-4 bg-white shadow-sm flex flex-col items-center justify-center qr-label" 
                                  :class="{
                                      'w-32 h-16 text-xs': labelSize === 'small',
                                      'w-48 h-32 text-sm': labelSize === 'medium',
@@ -2027,7 +1794,7 @@
                 </div>
                 
                 <div class="mt-4 text-xs text-gray-500">
-                    <p><i class="fas fa-info-circle mr-1"></i> Label akan dicetak dalam jendela baru. Gunakan fitur print browser Anda.</p>
+                    <p><i class="fas fa-info-circle mr-1"></i> Label akan dicetak dalam jendela baru dengan QR Code asli dari server.</p>
                 </div>
             </div>
         </div>
@@ -2271,7 +2038,6 @@
                 
                 // State untuk QR Code Scanner
                 showQRScanModal: false,
-                showQRGenerateModal: false,
                 qrScanMode: 'camera',
                 qrManualInput: '',
                 qrType: 'auto',
@@ -2285,17 +2051,7 @@
                 videoStream: null,
                 lastScanTime: null,
                 
-                // State untuk generate QR
-                selectedItemsForQR: [],
-                qrGenerateType: 'full',
-                qrIncludeLocation: true,
-                qrIncludeStock: true,
-                qrIncludeMinStock: true,
-                qrIncludeTimestamp: true,
-                singleQRCode: null,
-                singleQRItem: null,
-                singleQRData: '',
-                generatingQR: false,
+                // State untuk QR Stats
                 todayScanCount: 0,
                 showScanLogs: false,
                 
@@ -2658,7 +2414,7 @@
                         const result = await response.json();
                         this.lastScanTime = new Date().toISOString();
                         
-                        if (result.items && result.items.length > 0) {
+                        if (result.success && result.items && result.items.length > 0) {
                             this.scannedItems = result.items;
                             this.scannedItem = result.items[0];
                             
@@ -2773,345 +2529,6 @@
                         this.openQtyDetailModal(this.scannedItem);
                         this.closeQRScanModal();
                     }
-                },
-                
-                // QR Code Generator Methods
-                openQRGenerateModal() {
-                    this.showQRGenerateModal = true;
-                    this.selectedItemsForQR = [];
-                    this.singleQRCode = null;
-                    this.singleQRItem = null;
-                    this.singleQRData = '';
-                },
-                
-                closeQRGenerateModal() {
-                    this.showQRGenerateModal = false;
-                },
-                
-                selectAllQRItems() {
-                    this.selectedItemsForQR = this.items.map(item => item.id);
-                },
-                
-                deselectAllQRItems() {
-                    this.selectedItemsForQR = [];
-                },
-                
-                async generateSingleQR(item) {
-                    try {
-                        this.singleQRItem = item;
-                        
-                        // Generate QR data
-                        const qrData = {
-                            id: item.id,
-                            article: item.article,
-                            komponen: item.komponen,
-                            action: 'scan_update',
-                            timestamp: new Date().toISOString()
-                        };
-                        
-                        if (this.qrIncludeLocation && item.kolom) {
-                            qrData.location = item.kolom;
-                        }
-                        
-                        if (this.qrIncludeStock) {
-                            qrData.qty = item.qty;
-                        }
-                        
-                        if (this.qrIncludeMinStock) {
-                            qrData.minStock = item.minStock;
-                        }
-                        
-                        this.singleQRData = JSON.stringify(qrData, null, 2);
-                        
-                        // Generate QR code using server endpoint
-                        const response = await fetch(`/api/items/${item.id}/qrcode`);
-                        if (response.ok) {
-                            const blob = await response.blob();
-                            this.singleQRCode = URL.createObjectURL(blob);
-                        } else {
-                            // Fallback: create simple QR code using data URL
-                            const qrCodeText = JSON.stringify(qrData);
-                            const qrCodeURL = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeText)}`;
-                            this.singleQRCode = qrCodeURL;
-                        }
-                        
-                    } catch (err) {
-                        console.error('Error generating QR:', err);
-                        this.showNotificationMessage('Gagal generate QR Code: ' + err.message, 'error');
-                    }
-                },
-                
-                async generateBatchQR() {
-                    if (this.selectedItemsForQR.length === 0) return;
-                    
-                    this.generatingQR = true;
-                    
-                    try {
-                        const response = await fetch('/api/qrcode/batch', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                itemIds: this.selectedItemsForQR
-                            })
-                        });
-                        
-                        if (!response.ok) throw new Error('Gagal generate QR batch');
-                        
-                        const result = await response.json();
-                        
-                        // Open window to display QR codes
-                        this.printQRCodesWindow(result.qrCodes);
-                        
-                        this.showNotificationMessage(
-                            `Berhasil generate ${result.count} QR codes`,
-                            'success'
-                        );
-                        
-                    } catch (err) {
-                        this.showNotificationMessage('Gagal generate QR: ' + err.message, 'error');
-                    } finally {
-                        this.generatingQR = false;
-                    }
-                },
-                
-                async downloadQRCode(itemId) {
-                    try {
-                        const response = await fetch(`/api/items/${itemId}/qrcode`);
-                        if (!response.ok) throw new Error('Gagal download QR Code');
-                        
-                        const blob = await response.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `qr-code-item-${itemId}.png`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        window.URL.revokeObjectURL(url);
-                        
-                        this.showNotificationMessage('QR Code berhasil didownload', 'success');
-                    } catch (err) {
-                        this.showNotificationMessage('Gagal download QR Code: ' + err.message, 'error');
-                    }
-                },
-                
-                printQRCode(item) {
-                    if (!item) return;
-                    
-                    const printWindow = window.open('', '_blank');
-                    printWindow.document.write(`
-                        <html>
-                            <head>
-                                <title>QR Code - ${item.article}</title>
-                                <style>
-                                    body { 
-                                        font-family: Arial, sans-serif; 
-                                        text-align: center; 
-                                        padding: 20px; 
-                                    }
-                                    .qr-container { 
-                                        margin: 20px auto; 
-                                        max-width: 300px; 
-                                    }
-                                    .item-info { 
-                                        margin: 10px 0; 
-                                    }
-                                    @media print {
-                                        .no-print { display: none; }
-                                    }
-                                </style>
-                            </head>
-                            <body>
-                                <div class="no-print" style="margin-bottom: 20px;">
-                                    <button onclick="window.print()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                                        Print QR Code
-                                    </button>
-                                </div>
-                                
-                                <div class="qr-container">
-                                    <div class="item-info">
-                                        <h2>${item.article}</h2>
-                                        <p>ID: ${item.id}</p>
-                                        <p>Komponen: ${item.komponen}</p>
-                                        <p>Lokasi: ${item.kolom || '-'}</p>
-                                        <p>Stok: ${item.qty} | Min: ${item.minStock}</p>
-                                    </div>
-                                    <div style="margin: 20px 0;">
-                                        <div style="width: 200px; height: 200px; background: #f0f0f0; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
-                                            <span style="color: #666;">QR Code for ID: ${item.id}</span>
-                                        </div>
-                                    </div>
-                                    <div class="item-info">
-                                        <p>Scan QR code untuk update stok</p>
-                                        <p>Generated: ${new Date().toLocaleString()}</p>
-                                    </div>
-                                </div>
-                            </body>
-                        </html>
-                    `);
-                    printWindow.document.close();
-                },
-                
-                printQRCodes() {
-                    const selectedItems = this.items.filter(item => 
-                        this.selectedItemsForQR.includes(item.id)
-                    );
-                    
-                    if (selectedItems.length === 0) return;
-                    
-                    const printWindow = window.open('', '_blank');
-                    
-                    let qrHTML = `
-                        <html>
-                            <head>
-                                <title>QR Codes - ${selectedItems.length} items</title>
-                                <style>
-                                    body { font-family: Arial, sans-serif; margin: 20px; }
-                                    .qr-grid { 
-                                        display: grid; 
-                                        grid-template-columns: repeat(3, 1fr); 
-                                        gap: 15px; 
-                                        margin-top: 20px;
-                                    }
-                                    .qr-item { 
-                                        border: 1px solid #ddd; 
-                                        padding: 15px; 
-                                        text-align: center; 
-                                        page-break-inside: avoid;
-                                    }
-                                    .qr-img { 
-                                        width: 150px; 
-                                        height: 150px; 
-                                        margin: 0 auto 10px;
-                                    }
-                                    @media print {
-                                        body { margin: 10px; }
-                                        .no-print { display: none; }
-                                        .qr-grid { grid-template-columns: repeat(3, 1fr); }
-                                    }
-                                </style>
-                            </head>
-                            <body>
-                                <h1>QR Codes</h1>
-                                <p>Generated: ${new Date().toLocaleString()}</p>
-                                <p>Total: ${selectedItems.length} items</p>
-                                
-                                <div class="no-print" style="margin-bottom: 20px;">
-                                    <button onclick="window.print()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
-                                        Print QR Codes
-                                    </button>
-                                    <button onclick="window.close()" style="padding: 10px 20px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                                        Close
-                                    </button>
-                                </div>
-                                
-                                <div class="qr-grid">
-                    `;
-                    
-                    selectedItems.forEach(item => {
-                        qrHTML += `
-                            <div class="qr-item">
-                                <div class="qr-img" style="background: #f0f0f0; display: flex; align-items: center; justify-content: center;">
-                                    <span style="color: #666; font-size: 14px;">QR Code</span>
-                                </div>
-                                <p style="margin: 5px 0; font-weight: bold; font-size: 14px;">${item.article}</p>
-                                <p style="margin: 3px 0; font-size: 12px;">ID: ${item.id}</p>
-                                <p style="margin: 3px 0; font-size: 12px;">Lokasi: ${item.kolom || '-'}</p>
-                                <p style="margin: 3px 0; font-size: 12px;">Stok: ${item.qty} | Min: ${item.minStock}</p>
-                            </div>
-                        `;
-                    });
-                    
-                    qrHTML += `
-                                </div>
-                            </body>
-                        </html>
-                    `;
-                    
-                    printWindow.document.write(qrHTML);
-                    printWindow.document.close();
-                    
-                    this.showNotificationMessage(`${selectedItems.length} QR codes siap untuk dicetak`, 'success');
-                },
-                
-                printQRCodesWindow(qrCodes) {
-                    const printWindow = window.open('', '_blank');
-                    
-                    let qrHTML = `
-                        <html>
-                            <head>
-                                <title>QR Codes - ${qrCodes.length} items</title>
-                                <style>
-                                    body { font-family: Arial, sans-serif; margin: 20px; }
-                                    .qr-grid { 
-                                        display: grid; 
-                                        grid-template-columns: repeat(3, 1fr); 
-                                        gap: 15px; 
-                                        margin-top: 20px;
-                                    }
-                                    .qr-item { 
-                                        border: 1px solid #ddd; 
-                                        padding: 15px; 
-                                        text-align: center; 
-                                        page-break-inside: avoid;
-                                    }
-                                    .qr-img { 
-                                        width: 150px; 
-                                        height: 150px; 
-                                        margin: 0 auto 10px;
-                                    }
-                                    @media print {
-                                        body { margin: 10px; }
-                                        .no-print { display: none; }
-                                        .qr-grid { grid-template-columns: repeat(3, 1fr); }
-                                    }
-                                </style>
-                            </head>
-                            <body>
-                                <h1>QR Codes</h1>
-                                <p>Generated: ${new Date().toLocaleString()}</p>
-                                
-                                <div class="no-print" style="margin-bottom: 20px;">
-                                    <button onclick="window.print()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
-                                        Print QR Codes
-                                    </button>
-                                    <button onclick="window.close()" style="padding: 10px 20px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                                        Close
-                                    </button>
-                                </div>
-                                
-                                <div class="qr-grid">
-                    `;
-                    
-                    qrCodes.forEach(qr => {
-                        qrHTML += `
-                            <div class="qr-item">
-                                <img src="${qr.qrCodeDataURL}" alt="QR Code" class="qr-img">
-                                <p style="margin: 5px 0; font-weight: bold; font-size: 14px;">${qr.article}</p>
-                                <p style="margin: 3px 0; font-size: 12px;">ID: ${qr.id}</p>
-                                <p style="margin: 3px 0; font-size: 12px;">Lokasi: ${qr.location || '-'}</p>
-                                <p style="margin: 3px 0; font-size: 12px;">Stok: ${qr.qty} | Min: ${qr.minStock}</p>
-                            </div>
-                        `;
-                    });
-                    
-                    qrHTML += `
-                                </div>
-                            </body>
-                        </html>
-                    `;
-                    
-                    printWindow.document.write(qrHTML);
-                    printWindow.document.close();
-                },
-                
-                toggleActivityView() {
-                    this.showScanLogs = !this.showScanLogs;
-                },
-                
-                openScanLogs() {
-                    this.showScanLogs = true;
-                    this.loadScanLogs();
                 },
                 
                 // Existing methods
@@ -3434,180 +2851,201 @@
                 async printLabels() {
                     if (!this.selectedItemForLabel) return;
                     
-                    const printWindow = window.open('', '_blank');
                     const item = this.selectedItemForLabel;
                     
-                    // CSS untuk label berdasarkan ukuran
-                    const labelStyles = {
-                        small: 'width: 2in; height: 1in; font-size: 8px; padding: 0.05in;',
-                        medium: 'width: 3in; height: 2in; font-size: 10px; padding: 0.1in;',
-                        large: 'width: 4in; height: 3in; font-size: 12px; padding: 0.15in;'
-                    };
-                    
-                    let labelsHTML = '';
-                    for (let i = 0; i < this.labelCopies; i++) {
-                        labelsHTML += `
-                            <div class="label" style="${labelStyles[this.labelSize]} border: 1px solid #000; margin: 0.1in; display: inline-block; vertical-align: top; page-break-inside: avoid; background: white; box-sizing: border-box;">
-                                <div class="label-header" style="border-bottom: 1px solid #333; padding-bottom: 0.05in; margin-bottom: 0.1in; text-align: center;">
-                                    <h4 style="margin: 0; font-weight: bold; font-size: 1.2em;">WAREHOUSE LABEL</h4>
+                    try {
+                        // Get QR code for label
+                        let qrCodeURL = '';
+                        if (this.labelShowQR) {
+                            const qrResponse = await fetch(`/api/items/${item.id}/label-qrcode`);
+                            if (qrResponse.ok) {
+                                const blob = await qrResponse.blob();
+                                qrCodeURL = URL.createObjectURL(blob);
+                            }
+                        }
+                        
+                        const printWindow = window.open('', '_blank');
+                        
+                        // CSS untuk label berdasarkan ukuran
+                        const labelStyles = {
+                            small: 'width: 2in; height: 1in; font-size: 8px; padding: 0.05in;',
+                            medium: 'width: 3in; height: 2in; font-size: 10px; padding: 0.1in;',
+                            large: 'width: 4in; height: 3in; font-size: 12px; padding: 0.15in;'
+                        };
+                        
+                        let labelsHTML = '';
+                        for (let i = 0; i < this.labelCopies; i++) {
+                            labelsHTML += `
+                                <div class="label" style="${labelStyles[this.labelSize]} border: 1px solid #000; margin: 0.1in; display: inline-block; vertical-align: top; page-break-inside: avoid; background: white; box-sizing: border-box;">
+                                    <div class="label-header" style="border-bottom: 1px solid #333; padding-bottom: 0.05in; margin-bottom: 0.1in; text-align: center;">
+                                        <h4 style="margin: 0; font-weight: bold; font-size: 1.2em;">WAREHOUSE LABEL</h4>
+                                    </div>
+                                    
+                                    <div class="label-content" style="text-align: center;">
+                                        <p style="margin: 0.05in 0; font-weight: bold; font-size: 1.3em; word-break: break-word;">${item.article}</p>
+                                        <p style="margin: 0.03in 0; color: #555;">${item.komponen}</p>
+                                        
+                                        <div style="display: flex; justify-content: space-between; margin: 0.1in 0;">
+                                            <div style="text-align: left;">
+                                                <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>ID:</strong> ${item.id}</p>
+                                                <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>PO:</strong> ${item.noPo || '-'}</p>
+                                            </div>
+                                            <div style="text-align: right;">
+                                                <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>Stok:</strong> ${item.qty}</p>
+                                                <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>Min:</strong> ${item.minStock}</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div style="margin: 0.1in 0; padding: 0.05in; background: #f0f0f0; border-radius: 3px;">
+                                            <p style="margin: 0; font-weight: bold; font-size: 1.5em;">${item.kolom || 'LOKASI'}</p>
+                                        </div>
+                                        
+                                        ${this.labelShowQR && qrCodeURL ? `
+                                        <div style="margin: 0.05in auto; text-align: center;">
+                                            <img src="${qrCodeURL}" alt="QR Code" style="width: 0.8in; height: 0.8in;">
+                                        </div>
+                                        ` : this.labelShowQR ? `
+                                        <div style="margin: 0.05in auto; width: 0.8in; height: 0.8in; background: #f0f0f0; display: flex; align-items: center; justify-content: center;">
+                                            <span style="font-size: 0.7em; color: #666;">QR Code</span>
+                                        </div>
+                                        ` : ''}
+                                        
+                                        ${this.labelShowBarcode ? `
+                                        <div style="margin: 0.05in 0; text-align: center;">
+                                            <div style="display: inline-block; padding: 0.03in 0.1in; border: 1px solid #000; letter-spacing: 0.1em; font-family: 'Courier New', monospace; font-weight: bold;">
+                                                ${item.id.toString().padStart(6, '0')}
+                                            </div>
+                                            <p style="font-size: 0.7em; margin: 0.02in 0; color: #666;">ID: ${item.id}</p>
+                                        </div>
+                                        ` : ''}
+                                        
+                                        <p style="font-size: 0.7em; color: #666; margin-top: 0.1in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
+                                            ${new Date().toLocaleDateString('id-ID')} | WMS v4.1
+                                        </p>
+                                    </div>
                                 </div>
-                                
-                                <div class="label-content" style="text-align: center;">
-                                    <p style="margin: 0.05in 0; font-weight: bold; font-size: 1.3em; word-break: break-word;">${item.article}</p>
-                                    <p style="margin: 0.03in 0; color: #555;">${item.komponen}</p>
-                                    
-                                    <div style="display: flex; justify-content: space-between; margin: 0.1in 0;">
-                                        <div style="text-align: left;">
-                                            <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>ID:</strong> ${item.id}</p>
-                                            <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>PO:</strong> ${item.noPo || '-'}</p>
-                                        </div>
-                                        <div style="text-align: right;">
-                                            <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>Stok:</strong> ${item.qty}</p>
-                                            <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>Min:</strong> ${item.minStock}</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div style="margin: 0.1in 0; padding: 0.05in; background: #f0f0f0; border-radius: 3px;">
-                                        <p style="margin: 0; font-weight: bold; font-size: 1.5em;">${item.kolom || 'LOKASI'}</p>
-                                    </div>
-                                    
-                                    ${this.labelShowQR ? `
-                                    <div style="margin: 0.05in auto; width: 0.8in; height: 0.8in; background: #f0f0f0; display: flex; align-items: center; justify-content: center;">
-                                        <span style="font-size: 0.7em; color: #666;">QR Code</span>
-                                    </div>
-                                    ` : ''}
-                                    
-                                    ${this.labelShowBarcode ? `
-                                    <div style="margin: 0.05in 0; text-align: center;">
-                                        <div style="display: inline-block; padding: 0.03in 0.1in; border: 1px solid #000; letter-spacing: 0.1em; font-family: 'Courier New', monospace; font-weight: bold;">
-                                            ${item.id.toString().padStart(6, '0')}
-                                        </div>
-                                        <p style="font-size: 0.7em; margin: 0.02in 0; color: #666;">ID: ${item.id}</p>
-                                    </div>
-                                    ` : ''}
-                                    
-                                    <p style="font-size: 0.7em; color: #666; margin-top: 0.1in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
-                                        ${new Date().toLocaleDateString('id-ID')} | WMS v4.0
-                                    </p>
-                                </div>
-                            </div>
-                        `;
-                    }
-                    
-                    // Hitung jumlah kolom berdasarkan ukuran label
-                    const columns = {
-                        small: 4,
-                        medium: 3,
-                        large: 2
-                    };
-                    
-                    printWindow.document.write(`
-                        <!DOCTYPE html>
-                        <html>
-                            <head>
-                                <title>Label - ${item.article}</title>
-                                <style>
-                                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-                                    body {
-                                        font-family: 'Inter', Arial, sans-serif;
-                                        margin: 0;
-                                        padding: 0.25in;
-                                        background: white;
-                                        -webkit-print-color-adjust: exact !important;
-                                        color-adjust: exact !important;
-                                    }
-                                    @media print {
+                            `;
+                        }
+                        
+                        // Hitung jumlah kolom berdasarkan ukuran label
+                        const columns = {
+                            small: 4,
+                            medium: 3,
+                            large: 2
+                        };
+                        
+                        printWindow.document.write(`
+                            <!DOCTYPE html>
+                            <html>
+                                <head>
+                                    <title>Label - ${item.article}</title>
+                                    <style>
+                                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
                                         body {
-                                            padding: 0 !important;
-                                            margin: 0 !important;
+                                            font-family: 'Inter', Arial, sans-serif;
+                                            margin: 0;
+                                            padding: 0.25in;
+                                            background: white;
+                                            -webkit-print-color-adjust: exact !important;
+                                            color-adjust: exact !important;
                                         }
-                                        .label {
-                                            border: 1px solid #000 !important;
-                                            margin: 0.1in !important;
-                                            -webkit-print-color-adjust: exact;
-                                            print-color-adjust: exact;
+                                        @media print {
+                                            body {
+                                                padding: 0 !important;
+                                                margin: 0 !important;
+                                            }
+                                            .label {
+                                                border: 1px solid #000 !important;
+                                                margin: 0.1in !important;
+                                                -webkit-print-color-adjust: exact;
+                                                print-color-adjust: exact;
+                                            }
+                                            .no-print {
+                                                display: none !important;
+                                            }
+                                            @page {
+                                                margin: 0.25in;
+                                                size: letter;
+                                            }
                                         }
-                                        .no-print {
-                                            display: none !important;
+                                        .label-container {
+                                            display: grid;
+                                            grid-template-columns: repeat(${columns[this.labelSize]}, 1fr);
+                                            gap: 0.1in;
+                                            width: 100%;
                                         }
-                                        @page {
-                                            margin: 0.25in;
-                                            size: letter;
+                                        .controls {
+                                            background: #f5f5f5;
+                                            padding: 10px;
+                                            margin-bottom: 10px;
+                                            border-radius: 5px;
+                                            position: sticky;
+                                            top: 0;
+                                            z-index: 100;
                                         }
-                                    }
-                                    .label-container {
-                                        display: grid;
-                                        grid-template-columns: repeat(${columns[this.labelSize]}, 1fr);
-                                        gap: 0.1in;
-                                        width: 100%;
-                                    }
-                                    .controls {
-                                        background: #f5f5f5;
-                                        padding: 10px;
-                                        margin-bottom: 10px;
-                                        border-radius: 5px;
-                                        position: sticky;
-                                        top: 0;
-                                        z-index: 100;
-                                    }
-                                    button {
-                                        padding: 10px 20px;
-                                        background: #4CAF50;
-                                        color: white;
-                                        border: none;
-                                        border-radius: 5px;
-                                        cursor: pointer;
-                                        font-family: 'Inter', sans-serif;
-                                        font-size: 14px;
-                                        margin-right: 10px;
-                                    }
-                                    button:hover {
-                                        background: #45a049;
-                                    }
-                                    button.close-btn {
-                                        background: #f44336;
-                                    }
-                                    button.close-btn:hover {
-                                        background: #da190b;
-                                    }
-                                </style>
-                            </head>
-                            <body>
-                                <div class="controls no-print">
-                                    <h3>Label untuk: ${item.article}</h3>
-                                    <p>Jumlah label: ${this.labelCopies} | Ukuran: ${this.labelSize} | ID Item: ${item.id}</p>
-                                    <button onclick="window.print()">
-                                        <i class="fas fa-print"></i> Print Labels
-                                    </button>
-                                    <button onclick="window.close()" class="close-btn">
-                                        <i class="fas fa-times"></i> Close
-                                    </button>
-                                </div>
-                                
-                                <div class="label-container">
-                                    ${labelsHTML}
-                                </div>
-                                
-                                <script>
-                                    // Auto print jika diinginkan
-                                    // setTimeout(() => {
-                                    //     window.print();
-                                    // }, 1000);
+                                        button {
+                                            padding: 10px 20px;
+                                            background: #4CAF50;
+                                            color: white;
+                                            border: none;
+                                            border-radius: 5px;
+                                            cursor: pointer;
+                                            font-family: 'Inter', sans-serif;
+                                            font-size: 14px;
+                                            margin-right: 10px;
+                                        }
+                                        button:hover {
+                                            background: #45a049;
+                                        }
+                                        button.close-btn {
+                                            background: #f44336;
+                                        }
+                                        button.close-btn:hover {
+                                            background: #da190b;
+                                        }
+                                    </style>
+                                </head>
+                                <body>
+                                    <div class="controls no-print">
+                                        <h3>Label untuk: ${item.article}</h3>
+                                        <p>Jumlah label: ${this.labelCopies} | Ukuran: ${this.labelSize} | ID Item: ${item.id}</p>
+                                        <button onclick="window.print()">
+                                            <i class="fas fa-print"></i> Print Labels
+                                        </button>
+                                        <button onclick="window.close()" class="close-btn">
+                                            <i class="fas fa-times"></i> Close
+                                        </button>
+                                    </div>
                                     
-                                    // Auto close setelah print
-                                    window.onafterprint = function() {
-                                        setTimeout(function() {
-                                            window.close();
-                                        }, 1000);
-                                    };
-                                <\/script>
-                            </body>
-                        </html>
-                    `);
-                    printWindow.document.close();
-                    
-                    this.showLabelModal = false;
-                    this.showNotificationMessage(`Label untuk ${item.article} siap dicetak`, 'success');
+                                    <div class="label-container">
+                                        ${labelsHTML}
+                                    </div>
+                                    
+                                    <script>
+                                        // Auto print jika diinginkan
+                                        // setTimeout(() => {
+                                        //     window.print();
+                                        // }, 1000);
+                                        
+                                        // Auto close setelah print
+                                        window.onafterprint = function() {
+                                            setTimeout(function() {
+                                                window.close();
+                                            }, 1000);
+                                        };
+                                    <\/script>
+                                </body>
+                            </html>
+                        `);
+                        printWindow.document.close();
+                        
+                        this.showLabelModal = false;
+                        this.showNotificationMessage(`Label untuk ${item.article} siap dicetak`, 'success');
+                        
+                    } catch (err) {
+                        console.error('Error printing labels:', err);
+                        this.showNotificationMessage('Gagal mencetak label: ' + err.message, 'error');
+                    }
                 },
                 
                 openBulkLabelModal() {
@@ -3630,6 +3068,22 @@
                     const printWindow = window.open('', '_blank');
                     let labelsHTML = '';
                     
+                    // Collect all QR codes first
+                    const qrCodes = {};
+                    if (this.bulkLabelFormat !== 'simple') {
+                        for (const item of selectedItems) {
+                            try {
+                                const qrResponse = await fetch(`/api/items/${item.id}/label-qrcode`);
+                                if (qrResponse.ok) {
+                                    const blob = await qrResponse.blob();
+                                    qrCodes[item.id] = URL.createObjectURL(blob);
+                                }
+                            } catch (err) {
+                                console.error(`Failed to get QR for item ${item.id}:`, err);
+                            }
+                        }
+                    }
+                    
                     selectedItems.forEach(item => {
                         for (let i = 0; i < this.bulkLabelCopies; i++) {
                             labelsHTML += `
@@ -3645,13 +3099,17 @@
                                         </div>
                                         <div>
                                             <p style="margin: 0.03in 0; font-size: 11px; font-weight: bold;">Stok: ${item.qty} | Min: ${item.minStock}</p>
-                                            ${this.bulkLabelFormat !== 'simple' ? `
+                                            ${this.bulkLabelFormat !== 'simple' && qrCodes[item.id] ? `
+                                            <div style="margin: 0.05in auto; text-align: center;">
+                                                <img src="${qrCodes[item.id]}" alt="QR Code" style="width: 0.6in; height: 0.6in;">
+                                            </div>
+                                            ` : this.bulkLabelFormat !== 'simple' ? `
                                             <div style="margin: 0.05in auto; width: 0.6in; height: 0.6in; background: #e0e0e0; display: flex; align-items: center; justify-content: center;">
                                                 <span style="font-size: 8px; color: #666;">QR Code</span>
                                             </div>
                                             ` : ''}
                                             <p style="font-size: 8px; color: #666; margin-top: 0.05in;">
-                                                ${new Date().toLocaleDateString('id-ID')} | WMS
+                                                ${new Date().toLocaleDateString('id-ID')} | WMS v4.1
                                             </p>
                                         </div>
                                     </div>
@@ -3715,6 +3173,15 @@
                     
                     this.showBulkLabelModal = false;
                     this.showNotificationMessage(`${selectedItems.length} item dipilih untuk label massal`, 'success');
+                },
+                
+                toggleActivityView() {
+                    this.showScanLogs = !this.showScanLogs;
+                },
+                
+                openScanLogs() {
+                    this.showScanLogs = true;
+                    this.loadScanLogs();
                 },
                 
                 // Utility methods

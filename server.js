@@ -1,5 +1,5 @@
 // Warehouse Management App (Express.js + SQLite + Sequelize)
-// Versi 4.0 dengan fitur QR Code Scanner, Update Stok via QR, dan QR Generator
+// Versi 4.1 dengan fitur QR Code Scanner dan QR otomatis di label
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -1055,7 +1055,6 @@ app.get('/api/scan-logs', async (req, res) => {
         attributes: ['article', 'komponen', 'kolom']
       }]
     });
-    
     res.json(logs);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1145,6 +1144,44 @@ app.post('/api/inventory/count', async (req, res) => {
   }
 });
 
+// 24. GENERATE QR CODE FOR LABELS (NEW - untuk label)
+app.get('/api/items/:id/label-qrcode', async (req, res) => {
+  try {
+    const item = await Item.findByPk(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    
+    // Data minimal untuk QR Code di label
+    const qrData = JSON.stringify({
+      id: item.id,
+      article: item.article,
+      location: item.kolom || ''
+    });
+    
+    // Generate QR Code sebagai PNG dengan settings untuk label
+    const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+      errorCorrectionLevel: 'M',
+      type: 'image/png',
+      margin: 0, // No margin untuk label
+      scale: 3, // Lebih kecil untuk label
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+    
+    // Potong prefix data URL
+    const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, "");
+    
+    // Set response sebagai image PNG
+    res.set('Content-Type', 'image/png');
+    res.send(Buffer.from(base64Data, 'base64'));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Route untuk frontend
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -1172,10 +1209,10 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`========================================`);
-  console.log(`Warehouse Management System v4.0`);
+  console.log(`Warehouse Management System v4.1`);
+  console.log(`QR Code otomatis di label: ENABLED`);
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Database: ${sequelize.config.storage}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`QR Code Features: ENABLED`);
   console.log(`========================================`);
 });
