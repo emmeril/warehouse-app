@@ -148,6 +148,34 @@
             padding: 2px 4px;
             border-radius: 3px;
         }
+        
+        /* Bulk label grid */
+        .bulk-label-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .bulk-label-preview {
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 5px;
+            background: white;
+            font-size: 10px;
+            text-align: center;
+        }
+        
+        .bulk-label-preview .qr-mini {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto;
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen" x-data="warehouseApp()" x-init="init()" x-cloak>
@@ -1090,15 +1118,6 @@
                     <div class="pt-4 border-t border-blue-200">
                         <h5 class="font-bold text-blue-800 mb-3">Quick Update via QR:</h5>
                         
-                        <!-- Quick +/- Buttons -->
-                 
-                        
-                        <!-- Custom Adjustment -->
-
-                        
-                        <!-- Set to Specific Value -->
-
-                        
                         <!-- Detail Update Button -->
                         <div class="mt-4">
                             <button 
@@ -1800,7 +1819,7 @@
         </div>
     </div>
 
-    <!-- Modal Bulk Label -->
+    <!-- MODAL BULK LABEL (FIXED) -->
     <div 
         x-show="showBulkLabelModal" 
         x-transition:enter="transition ease-out duration-300"
@@ -1813,7 +1832,7 @@
         @click.away="showBulkLabelModal = false"
         x-cloak
     >
-        <div class="relative top-10 mx-auto p-4 border w-full max-w-4xl shadow-lg rounded-xl bg-white" @click.stop>
+        <div class="relative top-10 mx-auto p-4 border w-full max-w-6xl shadow-lg rounded-xl bg-white" @click.stop>
             <div class="flex justify-between items-center pb-4 border-b">
                 <h3 class="text-xl font-bold text-gray-800">
                     <i class="fas fa-tags mr-2 text-indigo-600"></i>
@@ -1825,63 +1844,180 @@
             </div>
 
             <div class="py-4">
-                <div class="mb-4">
-                    <label class="block text-gray-700 font-semibold text-sm mb-2">
-                        Pilih Items untuk Label Massal:
-                    </label>
-                    <div class="max-h-60 overflow-y-auto border border-gray-300 rounded-lg">
-                        <template x-for="item in items" :key="item.id">
-                            <label class="flex items-center p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
-                                <input 
-                                    type="checkbox" 
-                                    x-model="selectedItemsForBulkLabel" 
-                                    :value="item.id"
-                                    class="mr-3"
-                                >
-                                <div class="flex-1">
-                                    <span class="font-medium" x-text="item.article"></span>
-                                    <div class="text-sm text-gray-500">
-                                        <span x-text="item.komponen"></span> • 
-                                        <span x-text="'Lokasi: ' + (item.kolom || '-')"></span>
-                                    </div>
-                                </div>
-                            </label>
-                        </template>
-                    </div>
-                    <p class="text-sm text-gray-500 mt-2">
-                        <span x-text="selectedItemsForBulkLabel.length"></span> item terpilih
+                <div class="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                    <h4 class="font-bold text-indigo-800 mb-2">
+                        <i class="fas fa-info-circle mr-2"></i>Petunjuk
+                    </h4>
+                    <p class="text-sm text-indigo-700">
+                        Pilih item yang akan dicetak labelnya. Sistem akan membuat label dengan QR Code untuk setiap item.
                     </p>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Kolom kiri: Daftar item -->
+                    <div class="lg:col-span-2">
                         <label class="block text-gray-700 font-semibold text-sm mb-2">
-                            Label per item
+                            Pilih Items untuk Label Massal:
                         </label>
-                        <input
-                            type="number"
-                            x-model="bulkLabelCopies"
-                            min="1"
-                            max="10"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg"
-                        >
+                        <div class="max-h-80 overflow-y-auto border border-gray-300 rounded-lg">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50 sticky top-0">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                                            <input 
+                                                type="checkbox" 
+                                                @click="toggleSelectAllBulkLabels"
+                                                :checked="selectedItemsForBulkLabel.length === items.length"
+                                            >
+                                        </th>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Article</th>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Komponen</th>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Lokasi</th>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Stok</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <template x-for="item in items" :key="item.id">
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-2">
+                                                <input 
+                                                    type="checkbox" 
+                                                    x-model="selectedItemsForBulkLabel" 
+                                                    :value="item.id"
+                                                    class="mr-2"
+                                                >
+                                            </td>
+                                            <td class="px-4 py-2 text-sm font-medium text-gray-900" x-text="item.article"></td>
+                                            <td class="px-4 py-2 text-sm text-gray-700" x-text="item.komponen"></td>
+                                            <td class="px-4 py-2 text-sm text-gray-700" x-text="item.kolom || '-'"></td>
+                                            <td class="px-4 py-2 text-sm text-gray-700" x-text="item.qty"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="flex justify-between items-center mt-2">
+                            <p class="text-sm text-gray-500">
+                                <span x-text="selectedItemsForBulkLabel.length"></span> item terpilih dari <span x-text="items.length"></span>
+                            </p>
+                            <button 
+                                @click="toggleSelectAllBulkLabels" 
+                                class="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                            >
+                                <i class="fas fa-check-double mr-1"></i>
+                                <span x-text="selectedItemsForBulkLabel.length === items.length ? 'Hapus Semua' : 'Pilih Semua'"></span>
+                            </button>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-gray-700 font-semibold text-sm mb-2">
-                            Format Label
-                        </label>
-                        <select 
-                            x-model="bulkLabelFormat"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg"
-                        >
-                            <option value="simple">Simple (tanpa QR)</option>
-                            <option value="standard">Standard (dengan QR)</option>
-                            <option value="detailed">Detailed (lengkap)</option>
-                        </select>
+
+                    <!-- Kolom kanan: Pengaturan label -->
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-gray-700 font-semibold text-sm mb-2">
+                                Jumlah Label per Item
+                            </label>
+                            <div class="flex items-center space-x-2">
+                                <button 
+                                    @click="bulkLabelCopies = Math.max(1, bulkLabelCopies - 1)"
+                                    class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"
+                                >
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <input
+                                    type="number"
+                                    x-model="bulkLabelCopies"
+                                    min="1"
+                                    max="10"
+                                    class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center"
+                                >
+                                <button 
+                                    @click="bulkLabelCopies = Math.min(10, bulkLabelCopies + 1)"
+                                    class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"
+                                >
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <span class="text-sm text-gray-500 ml-2">(maks: 10)</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 font-semibold text-sm mb-2">
+                                Format Label
+                            </label>
+                            <select 
+                                x-model="bulkLabelFormat"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                            >
+                                <option value="simple">Simple (tanpa QR)</option>
+                                <option value="standard">Standard (dengan QR)</option>
+                                <option value="detailed">Detailed (lengkap)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-gray-700 font-semibold text-sm mb-2">
+                                Ukuran Label
+                            </label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button
+                                    @click="bulkLabelSize = 'small'"
+                                    :class="bulkLabelSize === 'small' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
+                                    class="py-2 px-3 rounded-lg transition text-sm"
+                                >
+                                    Kecil (2x1 in)
+                                </button>
+                                <button
+                                    @click="bulkLabelSize = 'medium'"
+                                    :class="bulkLabelSize === 'medium' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
+                                    class="py-2 px-3 rounded-lg transition text-sm"
+                                >
+                                    Sedang (3x2 in)
+                                </button>
+                                <button
+                                    @click="bulkLabelSize = 'large'"
+                                    :class="bulkLabelSize === 'large' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
+                                    class="py-2 px-3 rounded-lg transition text-sm"
+                                >
+                                    Besar (4x3 in)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Preview Label -->
+                        <div class="mt-4 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                            <h4 class="font-bold text-gray-700 mb-2">Pratinjau Label:</h4>
+                            <div class="flex justify-center">
+                                <div class="border border-gray-300 p-4 bg-white shadow-sm flex flex-col items-center justify-center qr-label" 
+                                     :class="{
+                                         'w-32 h-16 text-xs': bulkLabelSize === 'small',
+                                         'w-48 h-32 text-sm': bulkLabelSize === 'medium',
+                                         'w-64 h-48 text-base': bulkLabelSize === 'large'
+                                     }">
+                                    <p class="font-bold truncate w-full text-center">[Article]</p>
+                                    <p class="truncate w-full text-center">[Lokasi]</p>
+                                    <p class="text-xs mt-1">ID: [ID]</p>
+                                    <div x-show="bulkLabelFormat !== 'simple'" class="mt-1">
+                                        <div class="w-8 h-8 bg-gray-200 flex items-center justify-center">
+                                            <i class="fas fa-qrcode text-gray-600 text-xs"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Total Label yang akan dicetak -->
+                        <div class="p-4 bg-blue-50 rounded-lg">
+                            <h4 class="font-bold text-blue-800 mb-1">Ringkasan Cetak</h4>
+                            <p class="text-sm text-blue-700">
+                                Item terpilih: <span class="font-bold" x-text="selectedItemsForBulkLabel.length"></span><br>
+                                Label per item: <span class="font-bold" x-text="bulkLabelCopies"></span><br>
+                                <span class="font-bold text-lg">Total Label: <span x-text="selectedItemsForBulkLabel.length * bulkLabelCopies"></span></span>
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <div class="pt-4 flex space-x-3">
+                <div class="pt-6 flex space-x-3">
                     <button
                         @click="printBulkLabels"
                         class="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
@@ -2035,6 +2171,7 @@
                 labelShowBarcode: true,
                 bulkLabelCopies: 1,
                 bulkLabelFormat: 'standard',
+                bulkLabelSize: 'medium',
                 
                 // State untuk QR Code Scanner
                 showQRScanModal: false,
@@ -2932,7 +3069,7 @@
                             small: 4,
                             medium: 3,
                             large: 2
-                        };
+                        }[this.labelSize];
                         
                         printWindow.document.write(`
                             <!DOCTYPE html>
@@ -2970,7 +3107,7 @@
                                         }
                                         .label-container {
                                             display: grid;
-                                            grid-template-columns: repeat(${columns[this.labelSize]}, 1fr);
+                                            grid-template-columns: repeat(${columns}, 1fr);
                                             gap: 0.1in;
                                             width: 100%;
                                         }
@@ -3022,11 +3159,6 @@
                                     </div>
                                     
                                     <script>
-                                        // Auto print jika diinginkan
-                                        // setTimeout(() => {
-                                        //     window.print();
-                                        // }, 1000);
-                                        
                                         // Auto close setelah print
                                         window.onafterprint = function() {
                                             setTimeout(function() {
@@ -3052,6 +3184,7 @@
                     this.selectedItemsForBulkLabel = [];
                     this.bulkLabelCopies = 1;
                     this.bulkLabelFormat = 'standard';
+                    this.bulkLabelSize = 'medium';
                     this.showBulkLabelModal = true;
                 },
                 
@@ -3065,114 +3198,263 @@
                         return;
                     }
                     
-                    const printWindow = window.open('', '_blank');
-                    let labelsHTML = '';
-                    
-                    // Collect all QR codes first
-                    const qrCodes = {};
-                    if (this.bulkLabelFormat !== 'simple') {
-                        for (const item of selectedItems) {
-                            try {
-                                const qrResponse = await fetch(`/api/items/${item.id}/label-qrcode`);
-                                if (qrResponse.ok) {
-                                    const blob = await qrResponse.blob();
-                                    qrCodes[item.id] = URL.createObjectURL(blob);
-                                }
-                            } catch (err) {
-                                console.error(`Failed to get QR for item ${item.id}:`, err);
-                            }
+                    try {
+                        // Ambil data label dari server
+                        const response = await fetch('/api/labels/bulk', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                itemIds: selectedItems.map(item => item.id)
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Gagal mengambil data label');
                         }
-                    }
-                    
-                    selectedItems.forEach(item => {
-                        for (let i = 0; i < this.bulkLabelCopies; i++) {
-                            labelsHTML += `
-                                <div class="label" style="width: 3in; height: 2in; border: 1px solid #000; padding: 0.1in; margin: 0.1in; display: inline-block; vertical-align: top; page-break-inside: avoid; background: white;">
-                                    <div style="text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                                        <div>
-                                            <h4 style="margin: 0.05in 0; font-size: 14px; font-weight: bold; word-break: break-word;">${item.article}</h4>
-                                            <p style="margin: 0.03in 0; font-size: 10px; color: #555;">${item.komponen}</p>
-                                            <p style="margin: 0.02in 0; font-size: 9px;">ID: ${item.id} | PO: ${item.noPo || '-'}</p>
-                                        </div>
-                                        <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
-                                            <p style="margin: 0; font-weight: bold; font-size: 16px;">${item.kolom || 'LOKASI'}</p>
-                                        </div>
-                                        <div>
-                                            <p style="margin: 0.03in 0; font-size: 11px; font-weight: bold;">Stok: ${item.qty} | Min: ${item.minStock}</p>
-                                            ${this.bulkLabelFormat !== 'simple' && qrCodes[item.id] ? `
-                                            <div style="margin: 0.05in auto; text-align: center;">
-                                                <img src="${qrCodes[item.id]}" alt="QR Code" style="width: 0.6in; height: 0.6in;">
+                        
+                        const result = await response.json();
+                        
+                        if (!result.success || !result.labels) {
+                            throw new Error('Data label tidak valid');
+                        }
+                        
+                        // Tentukan ukuran label
+                        const labelSize = {
+                            small: { width: '2in', height: '1in', fontSize: '8px' },
+                            medium: { width: '3in', height: '2in', fontSize: '10px' },
+                            large: { width: '4in', height: '3in', fontSize: '12px' }
+                        }[this.bulkLabelSize];
+                        
+                        // Buat jendela cetak
+                        const printWindow = window.open('', '_blank');
+                        
+                        let labelsHTML = '';
+                        
+                        // Generate HTML untuk semua label
+                        result.labels.forEach((label, index) => {
+                            for (let i = 0; i < this.bulkLabelCopies; i++) {
+                                labelsHTML += `
+                                    <div class="label" style="
+                                        width: ${labelSize.width}; 
+                                        height: ${labelSize.height}; 
+                                        border: 1px solid #000; 
+                                        padding: 0.1in; 
+                                        margin: 0.1in; 
+                                        display: inline-block; 
+                                        vertical-align: top; 
+                                        page-break-inside: avoid; 
+                                        background: white; 
+                                        box-sizing: border-box;
+                                        font-size: ${labelSize.fontSize};
+                                    ">
+                                        <div style="text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                                            <div>
+                                                <h4 style="margin: 0.05in 0; font-weight: bold; word-break: break-word; text-transform: uppercase;">
+                                                    ${label.article}
+                                                </h4>
+                                                <p style="margin: 0.03in 0; color: #555;">
+                                                    ${label.komponen}
+                                                </p>
+                                                <p style="margin: 0.02in 0;">
+                                                    ID: ${label.id} | Lokasi: ${label.kolom || '-'}
+                                                </p>
                                             </div>
-                                            ` : this.bulkLabelFormat !== 'simple' ? `
-                                            <div style="margin: 0.05in auto; width: 0.6in; height: 0.6in; background: #e0e0e0; display: flex; align-items: center; justify-content: center;">
-                                                <span style="font-size: 8px; color: #666;">QR Code</span>
+                                            
+                                            <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
+                                                <p style="margin: 0; font-weight: bold; font-size: 1.2em; letter-spacing: 1px;">
+                                                    ${label.kolom || 'LOKASI'}
+                                                </p>
                                             </div>
-                                            ` : ''}
-                                            <p style="font-size: 8px; color: #666; margin-top: 0.05in;">
-                                                ${new Date().toLocaleDateString('id-ID')} | WMS v4.1
-                                            </p>
+                                            
+                                            <div>
+                                                <p style="margin: 0.03in 0; font-weight: bold;">
+                                                    Stok: ${label.qty} | ${new Date(label.timestamp).toLocaleDateString('id-ID')}
+                                                </p>
+                                                
+                                                ${this.bulkLabelFormat !== 'simple' ? `
+                                                <div style="margin: 0.05in auto; text-align: center;">
+                                                    <img src="${label.qrCodeDataURL}" alt="QR Code" 
+                                                         style="width: 0.6in; height: 0.6in; image-rendering: crisp-edges;">
+                                                </div>
+                                                ` : ''}
+                                                
+                                                ${this.bulkLabelFormat === 'detailed' ? `
+                                                <div style="margin: 0.05in 0; padding: 0.03in; background: #f8f8f8; border-radius: 2px;">
+                                                    <p style="margin: 0; color: #666;">
+                                                        <strong>Barcode:</strong> ${label.barcode || label.id.toString().padStart(6, '0')}
+                                                    </p>
+                                                </div>
+                                                ` : ''}
+                                                
+                                                <p style="color: #666; margin-top: 0.05in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
+                                                    WMS v4.1 | ${index + 1}/${result.count}
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            `;
-                        }
-                    });
-                    
-                    printWindow.document.write(`
-                        <!DOCTYPE html>
-                        <html>
-                            <head>
-                                <title>Bulk Labels - ${selectedItems.length} items</title>
-                                <style>
-                                    body {
-                                        font-family: Arial, sans-serif;
-                                        margin: 0;
-                                        padding: 0.25in;
-                                        background: white;
-                                    }
-                                    @media print {
+                                `;
+                            }
+                        });
+                        
+                        // Hitung jumlah kolom berdasarkan ukuran label
+                        const columns = {
+                            small: 4,
+                            medium: 3,
+                            large: 2
+                        }[this.bulkLabelSize];
+                        
+                        printWindow.document.write(`
+                            <!DOCTYPE html>
+                            <html>
+                                <head>
+                                    <title>Label Massal - ${selectedItems.length} items</title>
+                                    <style>
+                                        * {
+                                            margin: 0;
+                                            padding: 0;
+                                            box-sizing: border-box;
+                                            -webkit-print-color-adjust: exact !important;
+                                            print-color-adjust: exact !important;
+                                        }
+                                        
                                         body {
-                                            padding: 0 !important;
-                                            margin: 0 !important;
-                                        }
-                                        .label {
-                                            border: 1px solid #000 !important;
-                                            -webkit-print-color-adjust: exact;
-                                            print-color-adjust: exact;
-                                        }
-                                        .no-print {
-                                            display: none !important;
-                                        }
-                                        @page {
+                                            font-family: 'Inter', Arial, sans-serif;
                                             margin: 0.25in;
+                                            padding: 0;
+                                            background: white;
                                         }
-                                    }
-                                    .label-container {
-                                        display: grid;
-                                        grid-template-columns: repeat(3, 1fr);
-                                        gap: 0.1in;
-                                    }
-                                    .controls {
-                                        margin-bottom: 10px;
-                                    }
-                                </style>
-                            </head>
-                            <body>
-                                <div class="controls no-print" style="margin-bottom: 10px;">
-                                    <button onclick="window.print()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                                        Print All Labels (${selectedItems.length * this.bulkLabelCopies})
-                                    </button>
-                                </div>
-                                <div class="label-container">
-                                    ${labelsHTML}
-                                </div>
-                            </body>
-                        </html>
-                    `);
-                    printWindow.document.close();
-                    
-                    this.showBulkLabelModal = false;
-                    this.showNotificationMessage(`${selectedItems.length} item dipilih untuk label massal`, 'success');
+                                        
+                                        @media print {
+                                            body {
+                                                margin: 0 !important;
+                                                padding: 0 !important;
+                                            }
+                                            
+                                            .label {
+                                                border: 1px solid #000 !important;
+                                                -webkit-print-color-adjust: exact;
+                                                print-color-adjust: exact;
+                                            }
+                                            
+                                            .no-print {
+                                                display: none !important;
+                                            }
+                                            
+                                            @page {
+                                                margin: 0.25in;
+                                                size: letter;
+                                            }
+                                        }
+                                        
+                                        .label-container {
+                                            display: grid;
+                                            grid-template-columns: repeat(${columns}, 1fr);
+                                            gap: 0.1in;
+                                            width: 100%;
+                                        }
+                                        
+                                        .controls {
+                                            background: #f5f5f5;
+                                            padding: 10px;
+                                            margin-bottom: 10px;
+                                            border-radius: 5px;
+                                            position: sticky;
+                                            top: 0;
+                                            z-index: 100;
+                                        }
+                                        
+                                        button {
+                                            padding: 10px 20px;
+                                            background: #4CAF50;
+                                            color: white;
+                                            border: none;
+                                            border-radius: 5px;
+                                            cursor: pointer;
+                                            font-family: 'Inter', sans-serif;
+                                            font-size: 14px;
+                                            margin-right: 10px;
+                                        }
+                                        
+                                        button:hover {
+                                            background: #45a049;
+                                        }
+                                        
+                                        button.close-btn {
+                                            background: #f44336;
+                                        }
+                                        
+                                        button.close-btn:hover {
+                                            background: #da190b;
+                                        }
+                                        
+                                        .summary {
+                                            background: #e8f5e9;
+                                            padding: 10px;
+                                            border-radius: 5px;
+                                            margin-bottom: 10px;
+                                        }
+                                    </style>
+                                    
+                                    <script>
+                                        window.onload = function() {
+                                            // Auto close setelah print
+                                            window.onafterprint = function() {
+                                                setTimeout(function() {
+                                                    window.close();
+                                                }, 1000);
+                                            };
+                                        };
+                                    <\/script>
+                                </head>
+                                <body>
+                                    <div class="controls no-print">
+                                        <div class="summary">
+                                            <h3>Label Massal</h3>
+                                            <p>Jumlah Item: ${selectedItems.length} | Label per Item: ${this.bulkLabelCopies} | Total Label: ${selectedItems.length * this.bulkLabelCopies}</p>
+                                            <p>Format: ${this.bulkLabelFormat} | Ukuran: ${this.bulkLabelSize} | Kolom per halaman: ${columns}</p>
+                                        </div>
+                                        <button onclick="window.print()">
+                                            <i class="fas fa-print"></i> Print All Labels (${selectedItems.length * this.bulkLabelCopies})
+                                        </button>
+                                        <button onclick="window.close()" class="close-btn">
+                                            <i class="fas fa-times"></i> Close
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="label-container">
+                                        ${labelsHTML}
+                                    </div>
+                                    
+                                    <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
+                                        <p>Warehouse Management System v4.1 - Label Massal</p>
+                                        <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
+                                    </div>
+                                </body>
+                            </html>
+                        `);
+                        
+                        printWindow.document.close();
+                        
+                        this.showBulkLabelModal = false;
+                        this.showNotificationMessage(
+                            `Berhasil membuat ${selectedItems.length * this.bulkLabelCopies} label untuk ${selectedItems.length} item`,
+                            'success'
+                        );
+                        
+                    } catch (err) {
+                        console.error('Error printing bulk labels:', err);
+                        this.showNotificationMessage('Gagal mencetak label massal: ' + err.message, 'error');
+                    }
+                },
+                
+                toggleSelectAllBulkLabels() {
+                    if (this.selectedItemsForBulkLabel.length === this.items.length) {
+                        // Jika semua sudah terpilih, hapus semua
+                        this.selectedItemsForBulkLabel = [];
+                    } else {
+                        // Pilih semua items
+                        this.selectedItemsForBulkLabel = this.items.map(item => item.id);
+                    }
                 },
                 
                 toggleActivityView() {

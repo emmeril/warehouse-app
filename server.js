@@ -687,7 +687,7 @@ app.get('/api/items/:id/label-data', async (req, res) => {
   }
 });
 
-// 17. GENERATE BULK LABELS
+// 17. GENERATE BULK LABELS (FIXED)
 app.post('/api/labels/bulk', async (req, res) => {
   try {
     const { itemIds } = req.body;
@@ -702,27 +702,38 @@ app.post('/api/labels/bulk', async (req, res) => {
     });
     
     // Generate QR codes for each item
-    const labelData = [];
+    const labels = [];
     for (const item of items) {
       const qrData = JSON.stringify({
         id: item.id,
         article: item.article,
         komponen: item.komponen,
         location: item.kolom,
-        timestamp: new Date().toISOString()
+        qty: item.qty,
+        minStock: item.minStock,
+        timestamp: new Date().toISOString(),
+        action: 'scan_update'
       });
       
       const qrCodeDataURL = await QRCode.toDataURL(qrData, {
         errorCorrectionLevel: 'H',
-        scale: 6
+        type: 'image/png',
+        margin: 1,
+        scale: 6,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
       });
       
-      labelData.push({
+      labels.push({
         id: item.id,
         article: item.article,
         komponen: item.komponen,
         qty: item.qty,
         kolom: item.kolom,
+        minStock: item.minStock,
+        noPo: item.noPo || '',
         barcode: `WH${item.id.toString().padStart(6, '0')}`,
         qrData: qrData,
         qrCodeDataURL: qrCodeDataURL,
@@ -732,8 +743,8 @@ app.post('/api/labels/bulk', async (req, res) => {
     
     res.json({
       success: true,
-      count: labelData.length,
-      labels: labelData
+      count: labels.length,
+      labels: labels
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
