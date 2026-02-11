@@ -1,10 +1,11 @@
 // Warehouse Management App (Express.js + SQLite + Sequelize)
-// Versi lengkap dengan fitur detail update qty dan riwayat perubahan
+// Versi 4.0 dengan fitur QR Code Scanner, Update Stok via QR, dan QR Generator
 
 const express = require('express');
 const bodyParser = require('body-parser');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const path = require('path');
+const QRCode = require('qrcode');
 
 const app = express();
 app.use(bodyParser.json());
@@ -47,7 +48,7 @@ const QtyHistory = sequelize.define('QtyHistory', {
   newQty: { type: DataTypes.INTEGER, allowNull: false },
   changeAmount: { type: DataTypes.INTEGER, allowNull: false },
   changeType: { 
-    type: DataTypes.ENUM('manual', 'adjustment', 'inbound', 'outbound', 'correction'),
+    type: DataTypes.ENUM('manual', 'adjustment', 'inbound', 'outbound', 'correction', 'qr_scan'),
     defaultValue: 'manual'
   },
   notes: { type: DataTypes.TEXT },
@@ -70,11 +71,26 @@ const Location = sequelize.define('Location', {
   timestamps: true
 });
 
+// MODEL SCAN LOG
+const ScanLog = sequelize.define('ScanLog', {
+  itemId: { type: DataTypes.INTEGER, allowNull: false },
+  article: { type: DataTypes.STRING },
+  scanType: { type: DataTypes.ENUM('qr', 'barcode', 'manual'), defaultValue: 'qr' },
+  scanData: { type: DataTypes.TEXT },
+  action: { type: DataTypes.ENUM('search', 'update', 'check_in', 'check_out') },
+  result: { type: DataTypes.TEXT },
+  scannedBy: { type: DataTypes.STRING, defaultValue: 'System' }
+}, {
+  timestamps: true
+});
+
 // Asosiasi
 Item.hasMany(QtyHistory, { foreignKey: 'itemId', onDelete: 'CASCADE' });
 QtyHistory.belongsTo(Item, { foreignKey: 'itemId' });
 Item.belongsTo(Location, { foreignKey: 'locationId' });
 Location.hasMany(Item, { foreignKey: 'locationId' });
+Item.hasMany(ScanLog, { foreignKey: 'itemId', onDelete: 'CASCADE' });
+ScanLog.belongsTo(Item, { foreignKey: 'itemId' });
 
 // Sinkronisasi database
 sequelize.sync();
@@ -410,13 +426,24 @@ app.get('/api/dashboard/stats', async (req, res) => {
       }]
     });
     
+    // Recent scans
+    const recentScans = await ScanLog.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 5,
+      include: [{ 
+        model: Item,
+        attributes: ['article', 'komponen', 'kolom']
+      }]
+    });
+    
     res.json({
       totalItems,
       totalQty,
       totalOrder,
       lowStockItems,
       itemsByLocation,
-      recentActivities
+      recentActivities,
+      recentScans
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -527,11 +554,42 @@ app.get('/api/export/csv', async (req, res) => {
   }
 });
 
-// 13. IMPORT DATA FROM CSV (placeholder)
-app.post('/api/import/csv', async (req, res) => {
-  // Note: Untuk implementasi lengkap, Anda perlu meng-handle file upload
-  // Ini adalah placeholder untuk logika import
-  res.json({ message: 'Import feature coming soon' });
+// 13. IMPORT DATA FROM CSV
+app.post('/api/import/csv', express.text({ type: 'text/csv' }), async (req, res) => {
+  try {
+    const csvData = req.body;
+    const lines = csvData.split('\n');
+    const headers = lines[0].split(',');
+    
+    const importedItems = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const values = line.split(',');
+      const itemData = {
+        article: values[1]?.replace(/"/g, '') || '',
+        komponen: values[2]?.replace(/"/g, '') || '',
+        noPo: values[3]?.replace(/"/g, '') || '',
+        order: parseInt(values[4]) || 0,
+        qty: parseInt(values[5]) || 0,
+        minStock: parseInt(values[6]) || 10,
+        kolom: values[7]?.replace(/"/g, '') || ''
+      };
+      
+      const item = await Item.create(itemData);
+      importedItems.push(item);
+    }
+    
+    res.json({
+      success: true,
+      message: `Imported ${importedItems.length} items`,
+      items: importedItems
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 14. BACKUP DATABASE
@@ -578,9 +636,522 @@ app.post('/api/locations', async (req, res) => {
   }
 });
 
+// 16. GENERATE LABEL DATA
+app.get('/api/items/:id/label-data', async (req, res) => {
+  try {
+    const item = await Item.findByPk(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    
+    // Generate QR Code
+    const qrData = JSON.stringify({
+      id: item.id,
+      article: item.article,
+      komponen: item.komponen,
+      location: item.kolom,
+      minStock: item.minStock,
+      timestamp: new Date().toISOString(),
+      action: 'scan_update'
+    });
+    
+    const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+      errorCorrectionLevel: 'H',
+      type: 'image/png',
+      margin: 1,
+      scale: 6,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+    
+    // Generate label data
+    const labelData = {
+      id: item.id,
+      article: item.article,
+      komponen: item.komponen,
+      noPo: item.noPo,
+      qty: item.qty,
+      minStock: item.minStock,
+      kolom: item.kolom,
+      createdAt: item.createdAt,
+      barcodeData: `ITEM${item.id.toString().padStart(6, '0')}`,
+      qrData: qrData,
+      qrCodeDataURL: qrCodeDataURL
+    };
+    
+    res.json(labelData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 17. GENERATE BULK LABELS
+app.post('/api/labels/bulk', async (req, res) => {
+  try {
+    const { itemIds } = req.body;
+    
+    if (!Array.isArray(itemIds) || itemIds.length === 0) {
+      return res.status(400).json({ message: 'Item IDs array is required' });
+    }
+    
+    const items = await Item.findAll({
+      where: { id: itemIds },
+      order: [['kolom', 'ASC'], ['article', 'ASC']]
+    });
+    
+    // Generate QR codes for each item
+    const labelData = [];
+    for (const item of items) {
+      const qrData = JSON.stringify({
+        id: item.id,
+        article: item.article,
+        komponen: item.komponen,
+        location: item.kolom,
+        timestamp: new Date().toISOString()
+      });
+      
+      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+        errorCorrectionLevel: 'H',
+        scale: 6
+      });
+      
+      labelData.push({
+        id: item.id,
+        article: item.article,
+        komponen: item.komponen,
+        qty: item.qty,
+        kolom: item.kolom,
+        barcode: `WH${item.id.toString().padStart(6, '0')}`,
+        qrData: qrData,
+        qrCodeDataURL: qrCodeDataURL,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    res.json({
+      success: true,
+      count: labelData.length,
+      labels: labelData
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 18. QR CODE SCAN & SEARCH
+app.post('/api/qr-scan', async (req, res) => {
+  try {
+    const { qrData, type = 'auto' } = req.body;
+    
+    if (!qrData) {
+      return res.status(400).json({ message: 'QR data is required' });
+    }
+    
+    let where = {};
+    
+    // Parse QR data berdasarkan tipe
+    if (type === 'full' || type === 'auto') {
+      try {
+        // Coba parse sebagai JSON
+        const parsedData = JSON.parse(qrData);
+        if (parsedData.id) {
+          where.id = parsedData.id;
+        } else if (parsedData.article) {
+          where.article = { [Op.like]: `%${parsedData.article}%` };
+        }
+      } catch (err) {
+        // Jika bukan JSON, cari berdasarkan pattern
+        if (!isNaN(qrData)) {
+          // Numeric ID
+          where.id = parseInt(qrData);
+        } else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) {
+          // Format "ITEM123" atau "WH123"
+          const itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
+          where.id = itemId;
+        } else {
+          // Search by article or komponen
+          where[Op.or] = [
+            { article: { [Op.like]: `%${qrData}%` } },
+            { komponen: { [Op.like]: `%${qrData}%` } },
+            { kolom: { [Op.like]: `%${qrData}%` } }
+          ];
+        }
+      }
+    } else if (type === 'id') {
+      // QR berisi ID item saja
+      if (!isNaN(qrData)) {
+        where.id = parseInt(qrData);
+      } else {
+        const itemId = qrData.replace(/[^0-9]/g, '');
+        if (itemId) {
+          where.id = parseInt(itemId);
+        }
+      }
+    } else if (type === 'article') {
+      where.article = { [Op.like]: `%${qrData}%` };
+    }
+    
+    const items = await Item.findAll({
+      where,
+      order: [['updatedAt', 'DESC']],
+      limit: 10
+    });
+    
+    // Log the scan
+    if (items.length > 0) {
+      await ScanLog.create({
+        itemId: items[0].id,
+        article: items[0].article,
+        scanType: 'qr',
+        scanData: qrData,
+        action: 'search',
+        result: `Found ${items.length} items`,
+        scannedBy: req.body.scannedBy || 'System'
+      });
+    }
+    
+    if (items.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Item tidak ditemukan',
+        qrData,
+        type
+      });
+    }
+    
+    res.json({
+      success: true,
+      count: items.length,
+      items,
+      qrData
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 19. QUICK UPDATE VIA QR
+app.post('/api/qr-quick-update', async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { qrData, adjustment, newQty, changeType, notes, updatedBy } = req.body;
+    
+    if (!qrData) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'QR data is required' });
+    }
+    
+    if (adjustment === undefined && newQty === undefined) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Either adjustment or newQty is required' });
+    }
+    
+    // Parse QR untuk mendapatkan ID item
+    let itemId;
+    let item;
+    
+    // Try to parse as JSON first
+    try {
+      const parsedData = JSON.parse(qrData);
+      if (parsedData.id) {
+        itemId = parsedData.id;
+      }
+    } catch (err) {
+      // Not JSON, try other formats
+      if (!isNaN(qrData)) {
+        itemId = parseInt(qrData);
+      } else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) {
+        itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
+      } else {
+        // Search by article
+        item = await Item.findOne({
+          where: { article: { [Op.like]: `%${qrData}%` } }
+        });
+        if (item) {
+          itemId = item.id;
+        }
+      }
+    }
+    
+    if (!item) {
+      item = await Item.findByPk(itemId);
+    }
+    
+    if (!item) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Item tidak ditemukan' });
+    }
+    
+    const oldQty = item.qty;
+    let finalQty;
+    
+    if (newQty !== undefined) {
+      finalQty = parseInt(newQty);
+    } else {
+      finalQty = oldQty + parseInt(adjustment);
+    }
+    
+    if (finalQty < 0) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Quantity cannot be negative' });
+    }
+    
+    await item.update({ qty: finalQty }, { transaction });
+    
+    const history = await QtyHistory.create({
+      itemId: item.id,
+      article: item.article,
+      oldQty: oldQty,
+      newQty: finalQty,
+      changeAmount: finalQty - oldQty,
+      changeType: changeType || (adjustment > 0 ? 'inbound' : adjustment < 0 ? 'outbound' : 'qr_scan'),
+      notes: notes || `QR Scan Update: ${newQty !== undefined ? `Set to ${newQty}` : `Adjusted by ${adjustment > 0 ? '+' : ''}${adjustment}`}`,
+      updatedBy: updatedBy || 'QR Scanner'
+    }, { transaction });
+    
+    // Log the scan update
+    await ScanLog.create({
+      itemId: item.id,
+      article: item.article,
+      scanType: 'qr',
+      scanData: qrData,
+      action: 'update',
+      result: `Qty updated: ${oldQty} → ${finalQty}`,
+      scannedBy: updatedBy || 'QR Scanner'
+    }, { transaction });
+    
+    await transaction.commit();
+    
+    res.json({
+      success: true,
+      item: item,
+      history: history,
+      message: `Qty updated via QR: ${oldQty} → ${finalQty} (${finalQty - oldQty > 0 ? '+' : ''}${finalQty - oldQty})`
+    });
+  } catch (err) {
+    await transaction.rollback();
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 20. GENERATE QR CODE IMAGE
+app.get('/api/items/:id/qrcode', async (req, res) => {
+  try {
+    const item = await Item.findByPk(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    
+    // Data untuk QR Code
+    const qrData = JSON.stringify({
+      id: item.id,
+      article: item.article,
+      komponen: item.komponen,
+      location: item.kolom,
+      minStock: item.minStock,
+      timestamp: new Date().toISOString(),
+      action: 'scan_update'
+    });
+    
+    // Generate QR Code sebagai PNG
+    const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+      errorCorrectionLevel: 'H',
+      type: 'image/png',
+      margin: 1,
+      scale: 8,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+    
+    // Potong prefix data URL
+    const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, "");
+    
+    // Set response sebagai image PNG
+    res.set('Content-Type', 'image/png');
+    res.send(Buffer.from(base64Data, 'base64'));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 21. BATCH QR CODE GENERATION
+app.post('/api/qrcode/batch', async (req, res) => {
+  try {
+    const { itemIds } = req.body;
+    
+    if (!Array.isArray(itemIds) || itemIds.length === 0) {
+      return res.status(400).json({ message: 'Item IDs array is required' });
+    }
+    
+    const items = await Item.findAll({
+      where: { id: itemIds },
+      order: [['kolom', 'ASC'], ['article', 'ASC']]
+    });
+    
+    const qrCodes = [];
+    
+    for (const item of items) {
+      const qrData = JSON.stringify({
+        id: item.id,
+        article: item.article,
+        komponen: item.komponen,
+        location: item.kolom,
+        timestamp: new Date().toISOString(),
+        action: 'scan_update'
+      });
+      
+      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+        errorCorrectionLevel: 'H',
+        scale: 6
+      });
+      
+      qrCodes.push({
+        id: item.id,
+        article: item.article,
+        qrData: qrData,
+        qrCodeDataURL: qrCodeDataURL,
+        location: item.kolom,
+        qty: item.qty,
+        minStock: item.minStock
+      });
+    }
+    
+    res.json({
+      success: true,
+      count: qrCodes.length,
+      qrCodes: qrCodes
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 22. GET SCAN LOGS
+app.get('/api/scan-logs', async (req, res) => {
+  try {
+    const where = {};
+    
+    if (req.query.startDate) {
+      where.createdAt = { [Op.gte]: new Date(req.query.startDate) };
+    }
+    if (req.query.endDate) {
+      where.createdAt = { ...where.createdAt, [Op.lte]: new Date(req.query.endDate) };
+    }
+    if (req.query.action) {
+      where.action = req.query.action;
+    }
+    
+    const logs = await ScanLog.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: 100,
+      include: [{
+        model: Item,
+        attributes: ['article', 'komponen', 'kolom']
+      }]
+    });
+    
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 23. INVENTORY COUNT VIA QR
+app.post('/api/inventory/count', async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { scans } = req.body; // Array of { qrData, countedQty }
+    
+    if (!Array.isArray(scans) || scans.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Scans array is required' });
+    }
+    
+    const results = [];
+    const discrepancies = [];
+    
+    for (const scan of scans) {
+      const { qrData, countedQty } = scan;
+      
+      // Parse QR data to find item
+      let itemId;
+      try {
+        const parsedData = JSON.parse(qrData);
+        itemId = parsedData.id;
+      } catch (err) {
+        if (!isNaN(qrData)) {
+          itemId = parseInt(qrData);
+        } else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) {
+          itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
+        }
+      }
+      
+      const item = await Item.findByPk(itemId);
+      if (!item) {
+        results.push({ qrData, success: false, message: 'Item not found' });
+        continue;
+      }
+      
+      // Check for discrepancy
+      if (item.qty !== countedQty) {
+        discrepancies.push({
+          itemId: item.id,
+          article: item.article,
+          systemQty: item.qty,
+          countedQty: countedQty,
+          difference: countedQty - item.qty
+        });
+      }
+      
+      // Log the count
+      await ScanLog.create({
+        itemId: item.id,
+        article: item.article,
+        scanType: 'qr',
+        scanData: qrData,
+        action: 'check_in',
+        result: `Counted: ${countedQty}, System: ${item.qty}`,
+        scannedBy: req.body.scannedBy || 'Inventory Counter'
+      }, { transaction });
+      
+      results.push({
+        itemId: item.id,
+        article: item.article,
+        systemQty: item.qty,
+        countedQty: countedQty,
+        success: true
+      });
+    }
+    
+    await transaction.commit();
+    
+    res.json({
+      success: true,
+      totalScanned: results.length,
+      results: results,
+      discrepancies: discrepancies,
+      discrepancyCount: discrepancies.length
+    });
+  } catch (err) {
+    await transaction.rollback();
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Route untuk frontend
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/scanner', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'scanner.html'));
 });
 
 // Error handling middleware
@@ -592,10 +1163,19 @@ app.use((err, req, res, next) => {
   });
 });
 
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Warehouse Management App running on http://localhost:${PORT}`);
+  console.log(`========================================`);
+  console.log(`Warehouse Management System v4.0`);
+  console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Database: ${sequelize.config.storage}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`QR Code Features: ENABLED`);
+  console.log(`========================================`);
 });

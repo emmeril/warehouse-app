@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warehouse Management System v3.0</title>
+    <title>Warehouse Management System v4.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -22,8 +23,14 @@
             to { transform: translateX(0); opacity: 1; }
         }
         
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(1.2); opacity: 0; }
+        }
+        
         .fade-in { animation: fadeIn 0.3s ease-out; }
         .slide-in { animation: slideIn 0.3s ease-out; }
+        .pulse-ring { animation: pulse-ring 1.5s infinite; }
         
         /* Custom scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -61,11 +68,65 @@
         .badge-yellow { background-color: #fef3c7; color: #d97706; }
         .badge-purple { background-color: #ede9fe; color: #7c3aed; }
         .badge-gray { background-color: #f3f4f6; color: #4b5563; }
+        .badge-orange { background-color: #ffedd5; color: #f97316; }
         
         /* Print styles */
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
+        }
+        
+        /* Label styles */
+        .label-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(3in, 1fr));
+            gap: 5px;
+        }
+        
+        .label-preview {
+            border: 2px dashed #cbd5e1;
+            background: linear-gradient(45deg, #f8fafc 25%, #ffffff 25%, #ffffff 50%, #f8fafc 50%, #f8fafc 75%, #ffffff 75%, #ffffff);
+            background-size: 20px 20px;
+        }
+        
+        /* QR Scanner styles */
+        .qr-scanner-frame {
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+        }
+        
+        .qr-scanner-frame::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 4px solid rgba(59, 130, 246, 0.5);
+            border-radius: 12px;
+            animation: pulse-ring 1.5s infinite;
+            pointer-events: none;
+        }
+        
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+            animation: scan 2s linear infinite;
+        }
+        
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+        
+        /* Custom file upload */
+        .file-upload:hover .file-upload-label {
+            background-color: #f3f4f6;
         }
         
         [x-cloak] { display: none !important; }
@@ -81,9 +142,9 @@
                         <i class="fas fa-warehouse mr-3 text-blue-600"></i>
                         Warehouse Management System
                     </h1>
-                    <p class="text-gray-600 mt-2">Sistem Manajemen Gudang Terintegrasi - v3.0</p>
+                    <p class="text-gray-600 mt-2">Sistem Manajemen Gudang Terintegrasi - v4.0 dengan QR Code Scanner</p>
                 </div>
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-3">
                     <div class="hidden md:block text-right">
                         <div class="text-sm text-gray-500">Status Sistem</div>
                         <div class="flex items-center">
@@ -91,9 +152,26 @@
                             <span class="text-green-600 font-medium">Online</span>
                         </div>
                     </div>
-                    <button @click="exportToCSV" class="bg-green-100 hover:bg-green-200 text-green-800 font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-sm hover:shadow">
-                        <i class="fas fa-file-export mr-2"></i>Export CSV
+                    
+                    <!-- QR Code Scanner Button -->
+                    <button @click="openQRScanModal" class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-sm hover:shadow-lg flex items-center">
+                        <i class="fas fa-qrcode mr-2"></i>
+                        <span class="hidden sm:inline">Scan QR</span>
                     </button>
+                    
+                    <!-- Generate QR Button -->
+                    <button @click="openQRGenerateModal" class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-sm hover:shadow-lg flex items-center">
+                        <i class="fas fa-qr-code mr-2"></i>
+                        <span class="hidden sm:inline">Generate QR</span>
+                    </button>
+                    
+                    <!-- Export CSV Button -->
+                    <button @click="exportToCSV" class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-sm hover:shadow-lg flex items-center">
+                        <i class="fas fa-file-export mr-2"></i>
+                        <span class="hidden sm:inline">Export CSV</span>
+                    </button>
+                    
+                    <!-- Settings Button -->
                     <button @click="openSettingsModal" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200">
                         <i class="fas fa-cog"></i>
                     </button>
@@ -435,6 +513,25 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- QR Stats -->
+                        <div class="mt-4 pt-4 border-t border-gray-200">
+                            <h4 class="font-bold text-gray-800 mb-3">QR Code Statistics:</h4>
+                            <div class="flex items-center justify-between p-2 bg-purple-50 rounded-lg">
+                                <div class="flex items-center">
+                                    <div class="bg-purple-100 p-2 rounded-lg mr-3">
+                                        <i class="fas fa-qrcode text-purple-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-purple-700 font-medium">QR Scans Today</p>
+                                        <p class="text-lg font-bold text-purple-800" x-text="todayScanCount"></p>
+                                    </div>
+                                </div>
+                                <button @click="openScanLogs" class="text-purple-600 hover:text-purple-800 text-sm">
+                                    <i class="fas fa-history mr-1"></i>Logs
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -483,6 +580,13 @@
                             >
                                 <i class="fas fa-exclamation-triangle mr-2"></i>
                                 Stok Rendah
+                            </button>
+                            <button
+                                @click="openBulkLabelModal"
+                                class="bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm"
+                            >
+                                <i class="fas fa-tags mr-2"></i>
+                                Label Massal
                             </button>
                             <button
                                 @click="openPrintView"
@@ -629,8 +733,22 @@
                                                     <i class="fas fa-history"></i>
                                                 </button>
                                                 <button 
-                                                    @click="duplicateItem(item)"
+                                                    @click="generateSingleQR(item)"
+                                                    class="text-purple-600 hover:text-purple-900 transition p-1"
+                                                    title="Generate QR Code"
+                                                >
+                                                    <i class="fas fa-qrcode"></i>
+                                                </button>
+                                                <button 
+                                                    @click="openLabelModal(item)"
                                                     class="text-green-600 hover:text-green-900 transition p-1"
+                                                    title="Cetak Label"
+                                                >
+                                                    <i class="fas fa-tag"></i>
+                                                </button>
+                                                <button 
+                                                    @click="duplicateItem(item)"
+                                                    class="text-amber-600 hover:text-amber-900 transition p-1"
                                                     title="Duplikat item"
                                                 >
                                                     <i class="fas fa-copy"></i>
@@ -707,18 +825,21 @@
                         </div>
                     </div>
                     
-                    <!-- Stock Status -->
-                    <div class="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl p-5 fade-in">
+                    <!-- QR Code Stats -->
+                    <div class="bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-5 fade-in">
                         <div class="flex items-center">
-                            <div class="bg-green-100 p-3 rounded-lg mr-4">
-                                <i class="fas fa-check-circle text-green-600 text-xl"></i>
+                            <div class="bg-purple-100 p-3 rounded-lg mr-4">
+                                <i class="fas fa-qrcode text-purple-600 text-xl"></i>
                             </div>
                             <div>
-                                <h3 class="font-bold text-green-800">Stok Aman</h3>
-                                <p class="text-green-700 text-2xl font-bold" x-text="safeStockCount"></p>
-                                <p class="text-green-600 text-sm">Item tersedia</p>
+                                <h3 class="font-bold text-purple-800">QR Scans</h3>
+                                <p class="text-purple-700 text-2xl font-bold" x-text="todayScanCount"></p>
+                                <p class="text-purple-600 text-sm">Scan hari ini</p>
                             </div>
                         </div>
+                        <button @click="openQRScanModal" class="mt-3 text-sm text-purple-700 hover:text-purple-900">
+                            <i class="fas fa-camera mr-1"></i>Buka Scanner
+                        </button>
                     </div>
                     
                     <!-- Summary -->
@@ -743,11 +864,21 @@
                 
                 <!-- Recent Activities -->
                 <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 fade-in">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <i class="fas fa-history mr-3 text-purple-500 bg-purple-100 p-2 rounded-lg"></i>
-                        Aktivitas Terbaru
-                    </h3>
-                    <div class="space-y-3">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                            <i class="fas fa-history mr-3 text-purple-500 bg-purple-100 p-2 rounded-lg"></i>
+                            Aktivitas Terbaru
+                        </h3>
+                        <div class="flex space-x-2">
+                            <button @click="toggleActivityView" class="text-sm text-purple-600 hover:text-purple-800">
+                                <i class="fas fa-exchange-alt mr-1"></i>
+                                <span x-text="showScanLogs ? 'Tampilkan Updates' : 'Tampilkan Scans'"></span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Updates -->
+                    <div x-show="!showScanLogs" class="space-y-3">
                         <template x-for="activity in recentActivities" :key="activity.id">
                             <div class="flex items-center p-3 bg-gray-50 rounded-lg">
                                 <div class="flex-shrink-0 mr-3">
@@ -776,6 +907,38 @@
                             <p>Belum ada aktivitas</p>
                         </div>
                     </div>
+                    
+                    <!-- Recent Scans -->
+                    <div x-show="showScanLogs" class="space-y-3">
+                        <template x-for="scan in recentScans" :key="scan.id">
+                            <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                                <div class="flex-shrink-0 mr-3">
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center bg-blue-100">
+                                        <i class="fas fa-qrcode text-blue-600"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="text-sm font-medium text-gray-900" x-text="scan.article || 'Scan QR'"></p>
+                                    <p class="text-xs text-gray-500">
+                                        <span x-text="scan.action"></span> • 
+                                        <span x-text="scan.result"></span> • 
+                                        <span x-text="formatTimeAgo(scan.createdAt)"></span>
+                                    </p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-xs px-2 py-1 rounded-full" 
+                                          :class="scan.action === 'search' ? 'bg-blue-100 text-blue-800' : 
+                                                  scan.action === 'update' ? 'bg-green-100 text-green-800' :
+                                                  'bg-gray-100 text-gray-800'"
+                                          x-text="scan.action"></span>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="recentScans.length === 0" class="text-center py-4 text-gray-500">
+                            <i class="fas fa-qrcode text-2xl mb-2 block"></i>
+                            <p>Belum ada aktivitas scan</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -786,10 +949,10 @@
                 <div class="mb-4 md:mb-0">
                     <p class="text-gray-600">
                         <i class="fas fa-database mr-1"></i>
-                        Warehouse Management System v3.0
+                        Warehouse Management System v4.0
                     </p>
                     <p class="text-gray-500 text-sm mt-1">
-                        Dibuat dengan Express.js, SQLite, Tailwind CSS, dan Alpine.js
+                        Dibuat dengan Express.js, SQLite, Tailwind CSS, Alpine.js, dan QR Code Scanner
                     </p>
                 </div>
                 <div class="flex space-x-4">
@@ -801,6 +964,10 @@
                         <i class="fas fa-server mr-1"></i>
                         <span x-text="`${items.length} items`"></span>
                     </span>
+                    <span class="text-gray-500 text-sm">
+                        <i class="fas fa-qrcode mr-1"></i>
+                        <span x-text="`${todayScanCount} scans`"></span>
+                    </span>
                 </div>
             </div>
         </footer>
@@ -808,6 +975,493 @@
     
     <!-- === MODALS === -->
     
+    <!-- Modal QR Code Scanner -->
+    <div 
+        x-show="showQRScanModal" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+        @click.away="closeQRScanModal"
+        x-cloak
+    >
+        <div class="relative top-10 mx-auto p-4 border w-full max-w-2xl shadow-lg rounded-xl bg-white" @click.stop>
+            <div class="flex justify-between items-center pb-4 border-b">
+                <h3 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-qrcode mr-2 text-purple-600"></i>
+                    QR Code Scanner
+                </h3>
+                <button @click="closeQRScanModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="py-4">
+                <!-- Scanner Mode Selector -->
+                <div class="mb-6">
+                    <div class="flex space-x-2 mb-4">
+                        <button 
+                            @click="qrScanMode = 'camera'"
+                            :class="qrScanMode === 'camera' ? 'bg-purple-600 text-white' : 'bg-gray-100'"
+                            class="flex-1 py-2 px-4 rounded-lg transition flex items-center justify-center"
+                        >
+                            <i class="fas fa-camera mr-2"></i>Camera
+                        </button>
+                        <button 
+                            @click="qrScanMode = 'upload'"
+                            :class="qrScanMode === 'upload' ? 'bg-purple-600 text-white' : 'bg-gray-100'"
+                            class="flex-1 py-2 px-4 rounded-lg transition flex items-center justify-center"
+                        >
+                            <i class="fas fa-upload mr-2"></i>Upload
+                        </button>
+                        <button 
+                            @click="qrScanMode = 'manual'"
+                            :class="qrScanMode === 'manual' ? 'bg-purple-600 text-white' : 'bg-gray-100'"
+                            class="flex-1 py-2 px-4 rounded-lg transition flex items-center justify-center"
+                        >
+                            <i class="fas fa-keyboard mr-2"></i>Manual
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Camera Scanner -->
+                <div x-show="qrScanMode === 'camera'" class="space-y-4">
+                    <div class="text-center">
+                        <div class="qr-scanner-frame border-2 border-dashed border-gray-300 rounded-lg p-4 relative">
+                            <video id="qr-video" class="w-full max-w-md mx-auto rounded" playsinline></video>
+                            <div class="scan-line"></div>
+                            <canvas id="qr-canvas" class="hidden"></canvas>
+                            <div x-show="!cameraAvailable" class="text-center py-8">
+                                <i class="fas fa-camera-slash text-4xl text-gray-300 mb-3"></i>
+                                <p class="text-gray-500">Kamera tidak tersedia</p>
+                                <p class="text-gray-400 text-sm">Izinkan akses kamera atau gunakan mode lain</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex justify-center space-x-2">
+                            <button 
+                                @click="startCameraScan"
+                                :disabled="cameraScanning"
+                                class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition flex items-center"
+                            >
+                                <i class="fas fa-play mr-2" :class="{'fa-spinner spinner': cameraScanning}"></i>
+                                Start Camera
+                            </button>
+                            <button 
+                                @click="stopCameraScan"
+                                class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition flex items-center"
+                            >
+                                <i class="fas fa-stop mr-2"></i>
+                                Stop
+                            </button>
+                        </div>
+                        <div class="mt-2 text-xs text-gray-500">
+                            <p><i class="fas fa-info-circle mr-1"></i> Arahkan kamera ke QR Code untuk scan otomatis</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Upload QR Image -->
+                <div x-show="qrScanMode === 'upload'" class="space-y-4">
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                        <i class="fas fa-file-upload text-4xl text-gray-400 mb-4"></i>
+                        <p class="text-gray-600 mb-4">Upload gambar QR Code</p>
+                        <div class="file-upload">
+                            <input 
+                                type="file" 
+                                id="qr-file-input" 
+                                accept="image/*" 
+                                @change="handleQRFileUpload"
+                                class="hidden"
+                            >
+                            <label for="qr-file-input" class="cursor-pointer bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition inline-block">
+                                <i class="fas fa-folder-open mr-2"></i>Pilih File
+                            </label>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-2">Format: PNG, JPG, JPEG (max 5MB)</p>
+                    </div>
+                    <div x-show="qrUploadedImage" class="text-center">
+                        <img :src="qrUploadedImage" alt="Uploaded QR" class="max-w-xs mx-auto rounded border shadow">
+                        <button 
+                            @click="scanUploadedQR"
+                            class="mt-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition"
+                        >
+                            <i class="fas fa-search mr-2"></i>Scan Gambar
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Manual Input -->
+                <div x-show="qrScanMode === 'manual'" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">
+                            Masukkan kode QR atau ID Item
+                        </label>
+                        <textarea
+                            x-model="qrManualInput"
+                            rows="3"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                            placeholder="Tempel kode QR atau ID item di sini..."
+                            @keyup.enter="processQRCode(qrManualInput)"
+                        ></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-2">Tipe QR Code:</label>
+                            <select 
+                                x-model="qrType"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            >
+                                <option value="auto">Auto Detect</option>
+                                <option value="id">ID Item (ITEM123)</option>
+                                <option value="full">Full Data (JSON)</option>
+                                <option value="article">Article Name</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button 
+                                @click="processQRCode(qrManualInput)"
+                                :disabled="!qrManualInput.trim()"
+                                class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition flex items-center justify-center"
+                            >
+                                <i class="fas fa-search mr-2"></i>Cari Item
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-xs text-gray-500">
+                        <p><i class="fas fa-info-circle mr-1"></i> Format yang didukung: JSON, ID Item, atau teks biasa</p>
+                    </div>
+                </div>
+                
+                <!-- Scan Result -->
+                <div x-show="scannedItem" class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                    <div class="flex justify-between items-start mb-3">
+                        <h4 class="font-bold text-blue-800">Item Ditemukan:</h4>
+                        <button @click="scannedItem = null" class="text-blue-500 hover:text-blue-700">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <p class="text-sm text-blue-700">Article</p>
+                            <p class="font-bold text-lg" x-text="scannedItem.article"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-blue-700">Stok Saat Ini</p>
+                            <p class="font-bold text-2xl" :class="scannedItem.qty <= scannedItem.minStock ? 'text-red-600' : 'text-green-600'" x-text="scannedItem.qty"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-blue-700">ID Item</p>
+                            <p class="font-medium" x-text="scannedItem.id"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-blue-700">Lokasi</p>
+                            <p class="font-medium" x-text="scannedItem.kolom || '-'"></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Update Controls -->
+                    <div class="pt-4 border-t border-blue-200">
+                        <h5 class="font-bold text-blue-800 mb-3">Quick Update via QR:</h5>
+                        
+                        <!-- Quick +/- Buttons -->
+                        <div class="flex space-x-2 mb-3">
+                            <button 
+                                @click="qrQuickUpdate(-10)"
+                                class="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
+                            >
+                                <i class="fas fa-minus mr-1"></i> -10
+                            </button>
+                            <button 
+                                @click="qrQuickUpdate(-5)"
+                                class="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
+                            >
+                                <i class="fas fa-minus mr-1"></i> -5
+                            </button>
+                            <button 
+                                @click="qrQuickUpdate(-1)"
+                                class="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
+                            >
+                                <i class="fas fa-minus mr-1"></i> -1
+                            </button>
+                            <button 
+                                @click="qrQuickUpdate(1)"
+                                class="flex-1 bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
+                            >
+                                <i class="fas fa-plus mr-1"></i> +1
+                            </button>
+                            <button 
+                                @click="qrQuickUpdate(5)"
+                                class="flex-1 bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
+                            >
+                                <i class="fas fa-plus mr-1"></i> +5
+                            </button>
+                            <button 
+                                @click="qrQuickUpdate(10)"
+                                class="flex-1 bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center"
+                            >
+                                <i class="fas fa-plus mr-1"></i> +10
+                            </button>
+                        </div>
+                        
+                        <!-- Custom Adjustment -->
+                        <div class="flex space-x-2 mb-3">
+                            <div class="flex-1">
+                                <input
+                                    type="number"
+                                    x-model="qrCustomAdjustment"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    placeholder="Custom +/-"
+                                >
+                            </div>
+                            <button 
+                                @click="qrQuickUpdate(qrCustomAdjustment)"
+                                :disabled="!qrCustomAdjustment"
+                                class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition"
+                            >
+                                Apply
+                            </button>
+                        </div>
+                        
+                        <!-- Set to Specific Value -->
+                        <div class="flex space-x-2">
+                            <div class="flex-1">
+                                <input
+                                    type="number"
+                                    x-model="qrSetToValue"
+                                    min="0"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    placeholder="Set ke nilai"
+                                >
+                            </div>
+                            <button 
+                                @click="qrSetToSpecific()"
+                                :disabled="!qrSetToValue"
+                                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition"
+                            >
+                                Set Value
+                            </button>
+                        </div>
+                        
+                        <!-- Detail Update Button -->
+                        <div class="mt-4">
+                            <button 
+                                @click="openQRDetailUpdate()"
+                                class="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md"
+                            >
+                                <i class="fas fa-edit mr-2"></i>Detail Update
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Multiple Results -->
+                <div x-show="scannedItems.length > 1" class="mt-6">
+                    <h4 class="font-bold text-gray-800 mb-3">Multiple Items Found:</h4>
+                    <div class="max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
+                        <template x-for="item in scannedItems" :key="item.id">
+                            <div class="p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" @click="selectScannedItem(item)">
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <p class="font-medium" x-text="item.article"></p>
+                                        <p class="text-sm text-gray-500">ID: <span x-text="item.id"></span> • Qty: <span x-text="item.qty"></span></p>
+                                    </div>
+                                    <i class="fas fa-chevron-right text-gray-400"></i>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="pt-6 mt-6 border-t border-gray-200">
+                    <div class="flex justify-between">
+                        <div class="text-sm text-gray-600">
+                            <p x-show="lastScanTime">Last scan: <span x-text="formatTimeAgo(lastScanTime)"></span></p>
+                        </div>
+                        <div class="flex space-x-3">
+                            <button
+                                @click="closeQRScanModal"
+                                class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Generate QR Code -->
+    <div 
+        x-show="showQRGenerateModal" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+        @click.away="closeQRGenerateModal"
+        x-cloak
+    >
+        <div class="relative top-10 mx-auto p-4 border w-full max-w-4xl shadow-lg rounded-xl bg-white" @click.stop>
+            <div class="flex justify-between items-center pb-4 border-b">
+                <h3 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-qr-code mr-2 text-blue-600"></i>
+                    Generate QR Codes
+                </h3>
+                <button @click="closeQRGenerateModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="py-4">
+                <div class="mb-6">
+                    <label class="block text-gray-700 font-semibold text-sm mb-2">
+                        Pilih Items untuk Generate QR Code:
+                    </label>
+                    <div class="max-h-60 overflow-y-auto border border-gray-300 rounded-lg">
+                        <template x-for="item in items" :key="item.id">
+                            <label class="flex items-center p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
+                                <input 
+                                    type="checkbox" 
+                                    x-model="selectedItemsForQR" 
+                                    :value="item.id"
+                                    class="mr-3 rounded text-blue-600 focus:ring-blue-500"
+                                >
+                                <div class="flex-1">
+                                    <span class="font-medium" x-text="item.article"></span>
+                                    <div class="text-sm text-gray-500">
+                                        <span x-text="item.komponen"></span> • 
+                                        <span x-text="'ID: ' + item.id"></span> • 
+                                        <span x-text="'Lokasi: ' + (item.kolom || '-')"></span>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <button 
+                                        @click="generateSingleQR(item)"
+                                        class="text-blue-600 hover:text-blue-800 text-sm"
+                                    >
+                                        <i class="fas fa-qrcode mr-1"></i>Single
+                                    </button>
+                                </div>
+                            </label>
+                        </template>
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <p class="text-sm text-gray-500">
+                            <span x-text="selectedItemsForQR.length"></span> item terpilih
+                        </p>
+                        <div class="flex space-x-2">
+                            <button @click="selectAllQRItems" class="text-sm text-blue-600 hover:text-blue-800">
+                                Select All
+                            </button>
+                            <button @click="deselectAllQRItems" class="text-sm text-gray-600 hover:text-gray-800">
+                                Clear All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">
+                            QR Code Type
+                        </label>
+                        <select 
+                            x-model="qrGenerateType"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        >
+                            <option value="full">Full Data (JSON)</option>
+                            <option value="id">ID Only</option>
+                            <option value="url">URL with Details</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">
+                            Include in QR:
+                        </label>
+                        <div class="grid grid-cols-2 gap-1">
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="qrIncludeLocation" class="mr-2 rounded"> Lokasi
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="qrIncludeStock" class="mr-2 rounded"> Stock Info
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="qrIncludeMinStock" class="mr-2 rounded"> Min Stock
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" x-model="qrIncludeTimestamp" class="mr-2 rounded" checked> Timestamp
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- QR Code Preview -->
+                <div x-show="singleQRCode" class="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-bold text-gray-700">Preview QR Code:</h4>
+                        <div class="flex space-x-2">
+                            <button 
+                                @click="downloadQRCode(singleQRItem?.id)"
+                                class="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                                <i class="fas fa-download mr-1"></i>Download
+                            </button>
+                            <button 
+                                @click="printQRCode(singleQRItem)"
+                                class="text-green-600 hover:text-green-800 text-sm"
+                            >
+                                <i class="fas fa-print mr-1"></i>Print
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <img :src="singleQRCode" alt="QR Code Preview" class="max-w-xs mx-auto border shadow-sm">
+                        <p class="text-sm font-medium mt-2" x-text="singleQRItem?.article"></p>
+                        <p class="text-xs text-gray-600" x-text="'ID: ' + singleQRItem?.id"></p>
+                        <div class="mt-2 text-xs text-gray-500" x-text="singleQRData"></div>
+                    </div>
+                </div>
+
+                <div class="pt-4 flex space-x-3">
+                    <button
+                        @click="generateBatchQR"
+                        :disabled="selectedItemsForQR.length === 0"
+                        class="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md"
+                    >
+                        <i class="fas fa-qrcode mr-2" :class="{'fa-spinner spinner': generatingQR}"></i>
+                        Generate <span x-text="selectedItemsForQR.length"></span> QR Codes
+                    </button>
+                    
+                    <button
+                        @click="printQRCodes"
+                        :disabled="selectedItemsForQR.length === 0"
+                        class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md"
+                    >
+                        <i class="fas fa-print mr-2"></i>
+                        Print QR Codes
+                    </button>
+                    
+                    <button
+                        @click="closeQRGenerateModal"
+                        class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
+                    >
+                        Batal
+                    </button>
+                </div>
+                
+                <div class="mt-4 text-xs text-gray-500">
+                    <p><i class="fas fa-info-circle mr-1"></i> QR Code berisi data item untuk scanning cepat dan update stok</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Detail Update Qty -->
     <div 
         x-show="showQtyDetailModal" 
@@ -871,6 +1525,7 @@
                                     <option value="outbound">Outbound (Keluar)</option>
                                     <option value="adjustment">Adjustment (Penyesuaian)</option>
                                     <option value="correction">Koreksi</option>
+                                    <option value="qr_scan">QR Scan Update</option>
                                     <option value="manual">Manual Update</option>
                                 </select>
                             </div>
@@ -1039,6 +1694,7 @@
                             <option value="outbound">Outbound</option>
                             <option value="adjustment">Adjustment</option>
                             <option value="correction">Koreksi</option>
+                            <option value="qr_scan">QR Scan</option>
                         </select>
                         
                         <select 
@@ -1118,13 +1774,14 @@
                                                 'badge-red': history.changeType === 'outbound',
                                                 'badge-purple': history.changeType === 'adjustment',
                                                 'badge-yellow': history.changeType === 'correction',
+                                                'badge-orange': history.changeType === 'qr_scan',
                                                 'bg-gray-100 text-gray-800': history.changeType === 'manual'
                                             }"
                                             x-text="history.changeType"
                                         ></span>
                                     </td>
                                     <td class="px-4 py-3 text-sm text-gray-900 max-w-xs" :title="history.notes">
-                                        <span x-text="history.notes"></span>
+                                        <span class="truncate block" x-text="history.notes"></span>
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                                         <span x-text="history.updatedBy"></span>
@@ -1155,7 +1812,7 @@
                 <!-- Summary -->
                 <div x-show="qtyHistory.length > 0" class="mt-6 pt-6 border-t border-gray-200">
                     <h4 class="font-bold text-gray-800 mb-3">Ringkasan:</h4>
-                    <div class="grid grid-cols-4 gap-4">
+                    <div class="grid grid-cols-5 gap-4">
                         <div class="text-center">
                             <p class="text-sm text-gray-500">Total Update</p>
                             <p class="text-xl font-bold" x-text="qtyHistory.length"></p>
@@ -1171,6 +1828,10 @@
                         <div class="text-center">
                             <p class="text-sm text-gray-500">Adjustment</p>
                             <p class="text-xl font-bold text-purple-600" x-text="getHistoryCountByType('adjustment')"></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-sm text-gray-500">QR Scan</p>
+                            <p class="text-xl font-bold text-orange-600" x-text="getHistoryCountByType('qr_scan')"></p>
                         </div>
                     </div>
                 </div>
@@ -1290,6 +1951,271 @@
         </div>
     </div>
 
+    <!-- Modal Label Item -->
+    <div 
+        x-show="showLabelModal" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+        @click.away="showLabelModal = false"
+        x-cloak
+    >
+        <div class="relative top-10 mx-auto p-4 border w-full max-w-lg shadow-lg rounded-xl bg-white" @click.stop>
+            <div class="flex justify-between items-center pb-4 border-b">
+                <h3 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-tag mr-2 text-indigo-600"></i>
+                    Cetak Label Rak
+                </h3>
+                <button @click="showLabelModal = false" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="py-4">
+                <div class="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                    <h4 class="font-bold text-indigo-800 mb-2">Item yang akan dilabel:</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-indigo-700">Article</p>
+                            <p class="font-bold" x-text="selectedItemForLabel?.article"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-indigo-700">ID Item</p>
+                            <p class="font-bold" x-text="selectedItemForLabel?.id"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-indigo-700">Lokasi</p>
+                            <p class="font-medium" x-text="selectedItemForLabel?.kolom || 'Belum diisi'"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-indigo-700">Stok</p>
+                            <p class="font-medium" x-text="selectedItemForLabel?.qty"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">
+                            Jumlah Label (kopi)
+                        </label>
+                        <div class="flex items-center space-x-2">
+                            <button 
+                                @click="labelCopies = Math.max(1, labelCopies - 1)"
+                                class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"
+                            >
+                                <i class="fas fa-minus"></i>
+                            </button>
+                            <input
+                                type="number"
+                                x-model="labelCopies"
+                                min="1"
+                                max="50"
+                                class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center"
+                            >
+                            <button 
+                                @click="labelCopies = Math.min(50, labelCopies + 1)"
+                                class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"
+                            >
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <span class="text-sm text-gray-500 ml-2">(maks: 50)</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">
+                            Ukuran Label
+                        </label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button
+                                @click="labelSize = 'small'"
+                                :class="labelSize === 'small' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
+                                class="py-2 px-4 rounded-lg transition text-sm"
+                            >
+                                Kecil (2x1 in)
+                            </button>
+                            <button
+                                @click="labelSize = 'medium'"
+                                :class="labelSize === 'medium' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
+                                class="py-2 px-4 rounded-lg transition text-sm"
+                            >
+                                Sedang (3x2 in)
+                            </button>
+                            <button
+                                @click="labelSize = 'large'"
+                                :class="labelSize === 'large' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
+                                class="py-2 px-4 rounded-lg transition text-sm"
+                            >
+                                Besar (4x3 in)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" x-model="labelShowQR" class="rounded" checked>
+                            <span class="text-sm">Tampilkan QR Code</span>
+                        </label>
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" x-model="labelShowBarcode" class="rounded">
+                            <span class="text-sm">Tampilkan Barcode</span>
+                        </label>
+                    </div>
+
+                    <!-- Preview Label -->
+                    <div class="mt-6 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                        <h4 class="font-bold text-gray-700 mb-2">Pratinjau Label:</h4>
+                        <div class="flex justify-center">
+                            <div class="border border-gray-300 p-4 bg-white shadow-sm flex flex-col items-center justify-center" 
+                                 :class="{
+                                     'w-32 h-16 text-xs': labelSize === 'small',
+                                     'w-48 h-32 text-sm': labelSize === 'medium',
+                                     'w-64 h-48 text-base': labelSize === 'large'
+                                 }">
+                                <p class="font-bold truncate w-full text-center" x-text="selectedItemForLabel?.article"></p>
+                                <p class="truncate w-full text-center" x-text="selectedItemForLabel?.kolom || 'LOKASI'"></p>
+                                <p class="text-xs mt-1" x-text="'ID: ' + selectedItemForLabel?.id"></p>
+                                <div x-show="labelShowQR" class="mt-1">
+                                    <div class="w-8 h-8 bg-gray-200 flex items-center justify-center">
+                                        <i class="fas fa-qrcode text-gray-600 text-xs"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-6 flex space-x-3">
+                    <button
+                        @click="printLabels"
+                        class="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
+                    >
+                        <i class="fas fa-print mr-2"></i>
+                        Cetak <span x-text="labelCopies"></span> Label
+                    </button>
+                    
+                    <button
+                        @click="showLabelModal = false"
+                        class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
+                    >
+                        Batal
+                    </button>
+                </div>
+                
+                <div class="mt-4 text-xs text-gray-500">
+                    <p><i class="fas fa-info-circle mr-1"></i> Label akan dicetak dalam jendela baru. Gunakan fitur print browser Anda.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Bulk Label -->
+    <div 
+        x-show="showBulkLabelModal" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+        @click.away="showBulkLabelModal = false"
+        x-cloak
+    >
+        <div class="relative top-10 mx-auto p-4 border w-full max-w-4xl shadow-lg rounded-xl bg-white" @click.stop>
+            <div class="flex justify-between items-center pb-4 border-b">
+                <h3 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-tags mr-2 text-indigo-600"></i>
+                    Cetak Label Massal
+                </h3>
+                <button @click="showBulkLabelModal = false" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="py-4">
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-semibold text-sm mb-2">
+                        Pilih Items untuk Label Massal:
+                    </label>
+                    <div class="max-h-60 overflow-y-auto border border-gray-300 rounded-lg">
+                        <template x-for="item in items" :key="item.id">
+                            <label class="flex items-center p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
+                                <input 
+                                    type="checkbox" 
+                                    x-model="selectedItemsForBulkLabel" 
+                                    :value="item.id"
+                                    class="mr-3"
+                                >
+                                <div class="flex-1">
+                                    <span class="font-medium" x-text="item.article"></span>
+                                    <div class="text-sm text-gray-500">
+                                        <span x-text="item.komponen"></span> • 
+                                        <span x-text="'Lokasi: ' + (item.kolom || '-')"></span>
+                                    </div>
+                                </div>
+                            </label>
+                        </template>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-2">
+                        <span x-text="selectedItemsForBulkLabel.length"></span> item terpilih
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">
+                            Label per item
+                        </label>
+                        <input
+                            type="number"
+                            x-model="bulkLabelCopies"
+                            min="1"
+                            max="10"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">
+                            Format Label
+                        </label>
+                        <select 
+                            x-model="bulkLabelFormat"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                        >
+                            <option value="simple">Simple (tanpa QR)</option>
+                            <option value="standard">Standard (dengan QR)</option>
+                            <option value="detailed">Detailed (lengkap)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="pt-4 flex space-x-3">
+                    <button
+                        @click="printBulkLabels"
+                        class="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
+                        :disabled="selectedItemsForBulkLabel.length === 0"
+                    >
+                        <i class="fas fa-print mr-2"></i>
+                        Cetak <span x-text="selectedItemsForBulkLabel.length * bulkLabelCopies"></span> Label
+                    </button>
+                    
+                    <button
+                        @click="showBulkLabelModal = false"
+                        class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
+                    >
+                        Batal
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Notification Toast -->
     <div 
         x-show="showNotification" 
@@ -1394,6 +2320,7 @@
                 selectedItemsForBulk: [],
                 qtyHistory: [],
                 recentActivities: [],
+                recentScans: [],
                 historyFilter: {
                     changeType: '',
                     limit: '10',
@@ -1414,6 +2341,48 @@
                 qtyUpdateLoading: false,
                 qtyHistoryLoading: false,
                 bulkUpdateLoading: false,
+                
+                // State untuk fitur label
+                showLabelModal: false,
+                showBulkLabelModal: false,
+                selectedItemForLabel: null,
+                selectedItemsForBulkLabel: [],
+                labelCopies: 1,
+                labelSize: 'medium',
+                labelShowQR: true,
+                labelShowBarcode: true,
+                bulkLabelCopies: 1,
+                bulkLabelFormat: 'standard',
+                
+                // State untuk QR Code Scanner
+                showQRScanModal: false,
+                showQRGenerateModal: false,
+                qrScanMode: 'camera',
+                qrManualInput: '',
+                qrType: 'auto',
+                qrUploadedImage: null,
+                scannedItem: null,
+                scannedItems: [],
+                qrCustomAdjustment: 0,
+                qrSetToValue: '',
+                cameraScanning: false,
+                cameraAvailable: true,
+                videoStream: null,
+                lastScanTime: null,
+                
+                // State untuk generate QR
+                selectedItemsForQR: [],
+                qrGenerateType: 'full',
+                qrIncludeLocation: true,
+                qrIncludeStock: true,
+                qrIncludeMinStock: true,
+                qrIncludeTimestamp: true,
+                singleQRCode: null,
+                singleQRItem: null,
+                singleQRData: '',
+                generatingQR: false,
+                todayScanCount: 0,
+                showScanLogs: false,
                 
                 // Computed Properties
                 get filteredItems() {
@@ -1507,6 +2476,7 @@
                         this.loadItems(),
                         this.loadStats(),
                         this.loadRecentActivities(),
+                        this.loadScanLogs(),
                         this.loadUniqueValues()
                     ]);
                     
@@ -1515,6 +2485,9 @@
                         this.loadItems();
                         this.loadStats();
                     }, 60000);
+                    
+                    // Check camera availability
+                    this.checkCameraAvailability();
                 },
                 
                 async loadItems() {
@@ -1549,6 +2522,11 @@
                         const response = await fetch('/api/dashboard/stats');
                         if (response.ok) {
                             this.stats = await response.json();
+                            // Calculate today's scan count
+                            const today = new Date().toDateString();
+                            this.todayScanCount = this.recentScans.filter(scan => 
+                                new Date(scan.createdAt).toDateString() === today
+                            ).length;
                         }
                     } catch (err) {
                         console.error('Failed to load stats:', err);
@@ -1566,6 +2544,17 @@
                     }
                 },
                 
+                async loadScanLogs() {
+                    try {
+                        const response = await fetch('/api/scan-logs?limit=10');
+                        if (response.ok) {
+                            this.recentScans = await response.json();
+                        }
+                    } catch (err) {
+                        console.error('Failed to load scan logs:', err);
+                    }
+                },
+                
                 async loadUniqueValues() {
                     try {
                         const response = await fetch('/api/unique-values');
@@ -1577,6 +2566,640 @@
                     }
                 },
                 
+                // QR Code Scanner Methods
+                openQRScanModal() {
+                    this.showQRScanModal = true;
+                    this.scannedItem = null;
+                    this.scannedItems = [];
+                    this.qrManualInput = '';
+                    this.qrUploadedImage = null;
+                    this.qrCustomAdjustment = 0;
+                    this.qrSetToValue = '';
+                },
+                
+                closeQRScanModal() {
+                    this.showQRScanModal = false;
+                    this.stopCameraScan();
+                },
+                
+                async checkCameraAvailability() {
+                    try {
+                        const devices = await navigator.mediaDevices.enumerateDevices();
+                        const hasCamera = devices.some(device => device.kind === 'videoinput');
+                        this.cameraAvailable = hasCamera;
+                    } catch (err) {
+                        this.cameraAvailable = false;
+                    }
+                },
+                
+                async startCameraScan() {
+                    try {
+                        if (!this.cameraAvailable) {
+                            this.showNotificationMessage('Kamera tidak tersedia', 'error');
+                            return;
+                        }
+                        
+                        this.cameraScanning = true;
+                        
+                        // Dapatkan stream dari kamera
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                            video: { 
+                                facingMode: 'environment',
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 }
+                            },
+                            audio: false
+                        });
+                        
+                        this.videoStream = stream;
+                        const video = document.getElementById('qr-video');
+                        video.srcObject = stream;
+                        video.setAttribute('playsinline', true);
+                        
+                        await video.play();
+                        
+                        // Mulai scanning loop
+                        this.scanQRFromCamera();
+                        
+                    } catch (err) {
+                        this.cameraScanning = false;
+                        this.showNotificationMessage('Tidak dapat mengakses kamera: ' + err.message, 'error');
+                    }
+                },
+                
+                stopCameraScan() {
+                    if (this.videoStream) {
+                        this.videoStream.getTracks().forEach(track => track.stop());
+                        this.videoStream = null;
+                    }
+                    this.cameraScanning = false;
+                    
+                    const video = document.getElementById('qr-video');
+                    if (video) {
+                        video.srcObject = null;
+                    }
+                },
+                
+                scanQRFromCamera() {
+                    if (!this.cameraScanning) return;
+                    
+                    const video = document.getElementById('qr-video');
+                    const canvas = document.getElementById('qr-canvas');
+                    
+                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                        canvas.height = video.videoHeight;
+                        canvas.width = video.videoWidth;
+                        
+                        const context = canvas.getContext('2d');
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        
+                        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                        
+                        // Use jsQR library for decoding
+                        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                            inversionAttempts: 'dontInvert',
+                        });
+                        
+                        if (code) {
+                            this.processQRCode(code.data);
+                            this.stopCameraScan();
+                        }
+                    }
+                    
+                    if (this.cameraScanning) {
+                        requestAnimationFrame(() => this.scanQRFromCamera());
+                    }
+                },
+                
+                handleQRFileUpload(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    
+                    // Validate file size (max 5MB)
+                    if (file.size > 5 * 1024 * 1024) {
+                        this.showNotificationMessage('File terlalu besar (maks 5MB)', 'error');
+                        return;
+                    }
+                    
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.qrUploadedImage = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                },
+                
+                async scanUploadedQR() {
+                    if (!this.qrUploadedImage) {
+                        this.showNotificationMessage('Silakan upload gambar terlebih dahulu', 'error');
+                        return;
+                    }
+                    
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        context.drawImage(img, 0, 0);
+                        
+                        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                        
+                        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                            inversionAttempts: 'dontInvert',
+                        });
+                        
+                        if (code) {
+                            this.processQRCode(code.data);
+                            this.showNotificationMessage('QR Code berhasil dipindai', 'success');
+                        } else {
+                            this.showNotificationMessage('Tidak dapat membaca QR Code dari gambar', 'error');
+                        }
+                    };
+                    img.src = this.qrUploadedImage;
+                },
+                
+                async processQRCode(qrData) {
+                    if (!qrData || !qrData.trim()) {
+                        this.showNotificationMessage('QR Code data kosong', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/qr-scan', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                qrData: qrData.trim(),
+                                type: this.qrType,
+                                scannedBy: 'Web Scanner'
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Gagal memproses QR Code');
+                        }
+                        
+                        const result = await response.json();
+                        this.lastScanTime = new Date().toISOString();
+                        
+                        if (result.items && result.items.length > 0) {
+                            this.scannedItems = result.items;
+                            this.scannedItem = result.items[0];
+                            
+                            // Load recent scans
+                            await this.loadScanLogs();
+                            
+                            this.showNotificationMessage(`Item ditemukan: ${this.scannedItem.article}`, 'success');
+                        } else {
+                            this.showNotificationMessage('Item tidak ditemukan', 'error');
+                        }
+                        
+                    } catch (err) {
+                        this.showNotificationMessage('Error: ' + err.message, 'error');
+                    }
+                },
+                
+                selectScannedItem(item) {
+                    this.scannedItem = item;
+                },
+                
+                async qrQuickUpdate(adjustment) {
+                    if (!this.scannedItem || !adjustment) return;
+                    
+                    try {
+                        const response = await fetch('/api/qr-quick-update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                qrData: this.scannedItem.id.toString(),
+                                adjustment: parseInt(adjustment),
+                                changeType: adjustment > 0 ? 'inbound' : 'outbound',
+                                notes: `QR Quick Update: ${adjustment > 0 ? '+' : ''}${adjustment}`,
+                                updatedBy: 'QR Scanner'
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Gagal update stok');
+                        }
+                        
+                        const result = await response.json();
+                        
+                        // Update local data
+                        await this.loadItems();
+                        await this.loadRecentActivities();
+                        await this.loadScanLogs();
+                        
+                        // Update scanned item dengan data baru
+                        this.scannedItem.qty = result.item.qty;
+                        
+                        this.showNotificationMessage(
+                            `Stok diperbarui: ${result.item.article} (${result.message})`,
+                            'success'
+                        );
+                        
+                    } catch (err) {
+                        this.showNotificationMessage('Gagal update stok: ' + err.message, 'error');
+                    }
+                },
+                
+                async qrSetToSpecific() {
+                    if (!this.scannedItem || !this.qrSetToValue) return;
+                    
+                    const newQty = parseInt(this.qrSetToValue);
+                    if (newQty < 0) {
+                        this.showNotificationMessage('Quantity tidak boleh negatif', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/qr-quick-update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                qrData: this.scannedItem.id.toString(),
+                                newQty: newQty,
+                                changeType: 'manual',
+                                notes: `QR Set Value: ${newQty}`,
+                                updatedBy: 'QR Scanner'
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Gagal set stok');
+                        }
+                        
+                        const result = await response.json();
+                        
+                        // Update local data
+                        await this.loadItems();
+                        await this.loadRecentActivities();
+                        await this.loadScanLogs();
+                        
+                        // Update scanned item dengan data baru
+                        this.scannedItem.qty = result.item.qty;
+                        this.qrSetToValue = '';
+                        
+                        this.showNotificationMessage(
+                            `Stok diset ke: ${newQty} untuk ${result.item.article}`,
+                            'success'
+                        );
+                        
+                    } catch (err) {
+                        this.showNotificationMessage('Gagal set stok: ' + err.message, 'error');
+                    }
+                },
+                
+                openQRDetailUpdate() {
+                    if (this.scannedItem) {
+                        this.openQtyDetailModal(this.scannedItem);
+                        this.closeQRScanModal();
+                    }
+                },
+                
+                // QR Code Generator Methods
+                openQRGenerateModal() {
+                    this.showQRGenerateModal = true;
+                    this.selectedItemsForQR = [];
+                    this.singleQRCode = null;
+                    this.singleQRItem = null;
+                    this.singleQRData = '';
+                },
+                
+                closeQRGenerateModal() {
+                    this.showQRGenerateModal = false;
+                },
+                
+                selectAllQRItems() {
+                    this.selectedItemsForQR = this.items.map(item => item.id);
+                },
+                
+                deselectAllQRItems() {
+                    this.selectedItemsForQR = [];
+                },
+                
+                async generateSingleQR(item) {
+                    try {
+                        this.singleQRItem = item;
+                        
+                        // Generate QR data
+                        const qrData = {
+                            id: item.id,
+                            article: item.article,
+                            komponen: item.komponen,
+                            action: 'scan_update',
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        if (this.qrIncludeLocation && item.kolom) {
+                            qrData.location = item.kolom;
+                        }
+                        
+                        if (this.qrIncludeStock) {
+                            qrData.qty = item.qty;
+                        }
+                        
+                        if (this.qrIncludeMinStock) {
+                            qrData.minStock = item.minStock;
+                        }
+                        
+                        this.singleQRData = JSON.stringify(qrData, null, 2);
+                        
+                        // Generate QR code using server endpoint
+                        const response = await fetch(`/api/items/${item.id}/qrcode`);
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            this.singleQRCode = URL.createObjectURL(blob);
+                        } else {
+                            // Fallback: create simple QR code using data URL
+                            const qrCodeText = JSON.stringify(qrData);
+                            const qrCodeURL = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeText)}`;
+                            this.singleQRCode = qrCodeURL;
+                        }
+                        
+                    } catch (err) {
+                        console.error('Error generating QR:', err);
+                        this.showNotificationMessage('Gagal generate QR Code: ' + err.message, 'error');
+                    }
+                },
+                
+                async generateBatchQR() {
+                    if (this.selectedItemsForQR.length === 0) return;
+                    
+                    this.generatingQR = true;
+                    
+                    try {
+                        const response = await fetch('/api/qrcode/batch', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                itemIds: this.selectedItemsForQR
+                            })
+                        });
+                        
+                        if (!response.ok) throw new Error('Gagal generate QR batch');
+                        
+                        const result = await response.json();
+                        
+                        // Open window to display QR codes
+                        this.printQRCodesWindow(result.qrCodes);
+                        
+                        this.showNotificationMessage(
+                            `Berhasil generate ${result.count} QR codes`,
+                            'success'
+                        );
+                        
+                    } catch (err) {
+                        this.showNotificationMessage('Gagal generate QR: ' + err.message, 'error');
+                    } finally {
+                        this.generatingQR = false;
+                    }
+                },
+                
+                async downloadQRCode(itemId) {
+                    try {
+                        const response = await fetch(`/api/items/${itemId}/qrcode`);
+                        if (!response.ok) throw new Error('Gagal download QR Code');
+                        
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `qr-code-item-${itemId}.png`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                        
+                        this.showNotificationMessage('QR Code berhasil didownload', 'success');
+                    } catch (err) {
+                        this.showNotificationMessage('Gagal download QR Code: ' + err.message, 'error');
+                    }
+                },
+                
+                printQRCode(item) {
+                    if (!item) return;
+                    
+                    const printWindow = window.open('', '_blank');
+                    printWindow.document.write(`
+                        <html>
+                            <head>
+                                <title>QR Code - ${item.article}</title>
+                                <style>
+                                    body { 
+                                        font-family: Arial, sans-serif; 
+                                        text-align: center; 
+                                        padding: 20px; 
+                                    }
+                                    .qr-container { 
+                                        margin: 20px auto; 
+                                        max-width: 300px; 
+                                    }
+                                    .item-info { 
+                                        margin: 10px 0; 
+                                    }
+                                    @media print {
+                                        .no-print { display: none; }
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="no-print" style="margin-bottom: 20px;">
+                                    <button onclick="window.print()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                                        Print QR Code
+                                    </button>
+                                </div>
+                                
+                                <div class="qr-container">
+                                    <div class="item-info">
+                                        <h2>${item.article}</h2>
+                                        <p>ID: ${item.id}</p>
+                                        <p>Komponen: ${item.komponen}</p>
+                                        <p>Lokasi: ${item.kolom || '-'}</p>
+                                        <p>Stok: ${item.qty} | Min: ${item.minStock}</p>
+                                    </div>
+                                    <div style="margin: 20px 0;">
+                                        <div style="width: 200px; height: 200px; background: #f0f0f0; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                            <span style="color: #666;">QR Code for ID: ${item.id}</span>
+                                        </div>
+                                    </div>
+                                    <div class="item-info">
+                                        <p>Scan QR code untuk update stok</p>
+                                        <p>Generated: ${new Date().toLocaleString()}</p>
+                                    </div>
+                                </div>
+                            </body>
+                        </html>
+                    `);
+                    printWindow.document.close();
+                },
+                
+                printQRCodes() {
+                    const selectedItems = this.items.filter(item => 
+                        this.selectedItemsForQR.includes(item.id)
+                    );
+                    
+                    if (selectedItems.length === 0) return;
+                    
+                    const printWindow = window.open('', '_blank');
+                    
+                    let qrHTML = `
+                        <html>
+                            <head>
+                                <title>QR Codes - ${selectedItems.length} items</title>
+                                <style>
+                                    body { font-family: Arial, sans-serif; margin: 20px; }
+                                    .qr-grid { 
+                                        display: grid; 
+                                        grid-template-columns: repeat(3, 1fr); 
+                                        gap: 15px; 
+                                        margin-top: 20px;
+                                    }
+                                    .qr-item { 
+                                        border: 1px solid #ddd; 
+                                        padding: 15px; 
+                                        text-align: center; 
+                                        page-break-inside: avoid;
+                                    }
+                                    .qr-img { 
+                                        width: 150px; 
+                                        height: 150px; 
+                                        margin: 0 auto 10px;
+                                    }
+                                    @media print {
+                                        body { margin: 10px; }
+                                        .no-print { display: none; }
+                                        .qr-grid { grid-template-columns: repeat(3, 1fr); }
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <h1>QR Codes</h1>
+                                <p>Generated: ${new Date().toLocaleString()}</p>
+                                <p>Total: ${selectedItems.length} items</p>
+                                
+                                <div class="no-print" style="margin-bottom: 20px;">
+                                    <button onclick="window.print()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
+                                        Print QR Codes
+                                    </button>
+                                    <button onclick="window.close()" style="padding: 10px 20px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                                        Close
+                                    </button>
+                                </div>
+                                
+                                <div class="qr-grid">
+                    `;
+                    
+                    selectedItems.forEach(item => {
+                        qrHTML += `
+                            <div class="qr-item">
+                                <div class="qr-img" style="background: #f0f0f0; display: flex; align-items: center; justify-content: center;">
+                                    <span style="color: #666; font-size: 14px;">QR Code</span>
+                                </div>
+                                <p style="margin: 5px 0; font-weight: bold; font-size: 14px;">${item.article}</p>
+                                <p style="margin: 3px 0; font-size: 12px;">ID: ${item.id}</p>
+                                <p style="margin: 3px 0; font-size: 12px;">Lokasi: ${item.kolom || '-'}</p>
+                                <p style="margin: 3px 0; font-size: 12px;">Stok: ${item.qty} | Min: ${item.minStock}</p>
+                            </div>
+                        `;
+                    });
+                    
+                    qrHTML += `
+                                </div>
+                            </body>
+                        </html>
+                    `;
+                    
+                    printWindow.document.write(qrHTML);
+                    printWindow.document.close();
+                    
+                    this.showNotificationMessage(`${selectedItems.length} QR codes siap untuk dicetak`, 'success');
+                },
+                
+                printQRCodesWindow(qrCodes) {
+                    const printWindow = window.open('', '_blank');
+                    
+                    let qrHTML = `
+                        <html>
+                            <head>
+                                <title>QR Codes - ${qrCodes.length} items</title>
+                                <style>
+                                    body { font-family: Arial, sans-serif; margin: 20px; }
+                                    .qr-grid { 
+                                        display: grid; 
+                                        grid-template-columns: repeat(3, 1fr); 
+                                        gap: 15px; 
+                                        margin-top: 20px;
+                                    }
+                                    .qr-item { 
+                                        border: 1px solid #ddd; 
+                                        padding: 15px; 
+                                        text-align: center; 
+                                        page-break-inside: avoid;
+                                    }
+                                    .qr-img { 
+                                        width: 150px; 
+                                        height: 150px; 
+                                        margin: 0 auto 10px;
+                                    }
+                                    @media print {
+                                        body { margin: 10px; }
+                                        .no-print { display: none; }
+                                        .qr-grid { grid-template-columns: repeat(3, 1fr); }
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <h1>QR Codes</h1>
+                                <p>Generated: ${new Date().toLocaleString()}</p>
+                                
+                                <div class="no-print" style="margin-bottom: 20px;">
+                                    <button onclick="window.print()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
+                                        Print QR Codes
+                                    </button>
+                                    <button onclick="window.close()" style="padding: 10px 20px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                                        Close
+                                    </button>
+                                </div>
+                                
+                                <div class="qr-grid">
+                    `;
+                    
+                    qrCodes.forEach(qr => {
+                        qrHTML += `
+                            <div class="qr-item">
+                                <img src="${qr.qrCodeDataURL}" alt="QR Code" class="qr-img">
+                                <p style="margin: 5px 0; font-weight: bold; font-size: 14px;">${qr.article}</p>
+                                <p style="margin: 3px 0; font-size: 12px;">ID: ${qr.id}</p>
+                                <p style="margin: 3px 0; font-size: 12px;">Lokasi: ${qr.location || '-'}</p>
+                                <p style="margin: 3px 0; font-size: 12px;">Stok: ${qr.qty} | Min: ${qr.minStock}</p>
+                            </div>
+                        `;
+                    });
+                    
+                    qrHTML += `
+                                </div>
+                            </body>
+                        </html>
+                    `;
+                    
+                    printWindow.document.write(qrHTML);
+                    printWindow.document.close();
+                },
+                
+                toggleActivityView() {
+                    this.showScanLogs = !this.showScanLogs;
+                },
+                
+                openScanLogs() {
+                    this.showScanLogs = true;
+                    this.loadScanLogs();
+                },
+                
+                // Existing methods (sama seperti sebelumnya)
                 async saveItem() {
                     // Validasi
                     if (!this.currentItem.article.trim() || !this.currentItem.komponen.trim()) {
@@ -1967,6 +3590,302 @@
                     this.updateQtyAdjustment();
                 },
                 
+                // Methods untuk fitur label
+                openLabelModal(item) {
+                    this.selectedItemForLabel = { ...item };
+                    this.labelCopies = 1;
+                    this.labelSize = 'medium';
+                    this.labelShowQR = true;
+                    this.labelShowBarcode = true;
+                    this.showLabelModal = true;
+                },
+                
+                async printLabels() {
+                    if (!this.selectedItemForLabel) return;
+                    
+                    const printWindow = window.open('', '_blank');
+                    const item = this.selectedItemForLabel;
+                    
+                    // CSS untuk label berdasarkan ukuran
+                    const labelStyles = {
+                        small: 'width: 2in; height: 1in; font-size: 8px; padding: 0.05in;',
+                        medium: 'width: 3in; height: 2in; font-size: 10px; padding: 0.1in;',
+                        large: 'width: 4in; height: 3in; font-size: 12px; padding: 0.15in;'
+                    };
+                    
+                    let labelsHTML = '';
+                    for (let i = 0; i < this.labelCopies; i++) {
+                        labelsHTML += `
+                            <div class="label" style="${labelStyles[this.labelSize]} border: 1px solid #000; margin: 0.1in; display: inline-block; vertical-align: top; page-break-inside: avoid; background: white; box-sizing: border-box;">
+                                <div class="label-header" style="border-bottom: 1px solid #333; padding-bottom: 0.05in; margin-bottom: 0.1in; text-align: center;">
+                                    <h4 style="margin: 0; font-weight: bold; font-size: 1.2em;">WAREHOUSE LABEL</h4>
+                                </div>
+                                
+                                <div class="label-content" style="text-align: center;">
+                                    <p style="margin: 0.05in 0; font-weight: bold; font-size: 1.3em; word-break: break-word;">${item.article}</p>
+                                    <p style="margin: 0.03in 0; color: #555;">${item.komponen}</p>
+                                    
+                                    <div style="display: flex; justify-content: space-between; margin: 0.1in 0;">
+                                        <div style="text-align: left;">
+                                            <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>ID:</strong> ${item.id}</p>
+                                            <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>PO:</strong> ${item.noPo || '-'}</p>
+                                        </div>
+                                        <div style="text-align: right;">
+                                            <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>Stok:</strong> ${item.qty}</p>
+                                            <p style="margin: 0.02in 0; font-size: 0.9em;"><strong>Min:</strong> ${item.minStock}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="margin: 0.1in 0; padding: 0.05in; background: #f0f0f0; border-radius: 3px;">
+                                        <p style="margin: 0; font-weight: bold; font-size: 1.5em;">${item.kolom || 'LOKASI'}</p>
+                                    </div>
+                                    
+                                    ${this.labelShowQR ? `
+                                    <div style="margin: 0.05in auto; width: 0.8in; height: 0.8in; background: #f0f0f0; display: flex; align-items: center; justify-content: center;">
+                                        <span style="font-size: 0.7em; color: #666;">QR Code</span>
+                                    </div>
+                                    ` : ''}
+                                    
+                                    ${this.labelShowBarcode ? `
+                                    <div style="margin: 0.05in 0; text-align: center;">
+                                        <div style="display: inline-block; padding: 0.03in 0.1in; border: 1px solid #000; letter-spacing: 0.1em; font-family: 'Courier New', monospace; font-weight: bold;">
+                                            ${item.id.toString().padStart(6, '0')}
+                                        </div>
+                                        <p style="font-size: 0.7em; margin: 0.02in 0; color: #666;">ID: ${item.id}</p>
+                                    </div>
+                                    ` : ''}
+                                    
+                                    <p style="font-size: 0.7em; color: #666; margin-top: 0.1in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
+                                        ${new Date().toLocaleDateString('id-ID')} | WMS v4.0
+                                    </p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    // Hitung jumlah kolom berdasarkan ukuran label
+                    const columns = {
+                        small: 4,
+                        medium: 3,
+                        large: 2
+                    };
+                    
+                    printWindow.document.write(`
+                        <!DOCTYPE html>
+                        <html>
+                            <head>
+                                <title>Label - ${item.article}</title>
+                                <style>
+                                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+                                    body {
+                                        font-family: 'Inter', Arial, sans-serif;
+                                        margin: 0;
+                                        padding: 0.25in;
+                                        background: white;
+                                        -webkit-print-color-adjust: exact !important;
+                                        color-adjust: exact !important;
+                                    }
+                                    @media print {
+                                        body {
+                                            padding: 0 !important;
+                                            margin: 0 !important;
+                                        }
+                                        .label {
+                                            border: 1px solid #000 !important;
+                                            margin: 0.1in !important;
+                                            -webkit-print-color-adjust: exact;
+                                            print-color-adjust: exact;
+                                        }
+                                        .no-print {
+                                            display: none !important;
+                                        }
+                                        @page {
+                                            margin: 0.25in;
+                                            size: letter;
+                                        }
+                                    }
+                                    .label-container {
+                                        display: grid;
+                                        grid-template-columns: repeat(${columns[this.labelSize]}, 1fr);
+                                        gap: 0.1in;
+                                        width: 100%;
+                                    }
+                                    .controls {
+                                        background: #f5f5f5;
+                                        padding: 10px;
+                                        margin-bottom: 10px;
+                                        border-radius: 5px;
+                                        position: sticky;
+                                        top: 0;
+                                        z-index: 100;
+                                    }
+                                    button {
+                                        padding: 10px 20px;
+                                        background: #4CAF50;
+                                        color: white;
+                                        border: none;
+                                        border-radius: 5px;
+                                        cursor: pointer;
+                                        font-family: 'Inter', sans-serif;
+                                        font-size: 14px;
+                                        margin-right: 10px;
+                                    }
+                                    button:hover {
+                                        background: #45a049;
+                                    }
+                                    button.close-btn {
+                                        background: #f44336;
+                                    }
+                                    button.close-btn:hover {
+                                        background: #da190b;
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="controls no-print">
+                                    <h3>Label untuk: ${item.article}</h3>
+                                    <p>Jumlah label: ${this.labelCopies} | Ukuran: ${this.labelSize} | ID Item: ${item.id}</p>
+                                    <button onclick="window.print()">
+                                        <i class="fas fa-print"></i> Print Labels
+                                    </button>
+                                    <button onclick="window.close()" class="close-btn">
+                                        <i class="fas fa-times"></i> Close
+                                    </button>
+                                </div>
+                                
+                                <div class="label-container">
+                                    ${labelsHTML}
+                                </div>
+                                
+                                <script>
+                                    // Auto print jika diinginkan
+                                    // setTimeout(() => {
+                                    //     window.print();
+                                    // }, 1000);
+                                    
+                                    // Auto close setelah print
+                                    window.onafterprint = function() {
+                                        setTimeout(function() {
+                                            window.close();
+                                        }, 1000);
+                                    };
+                                <\/script>
+                            </body>
+                        </html>
+                    `);
+                    printWindow.document.close();
+                    
+                    this.showLabelModal = false;
+                    this.showNotificationMessage(`Label untuk ${item.article} siap dicetak`, 'success');
+                },
+                
+                openBulkLabelModal() {
+                    this.selectedItemsForBulkLabel = [];
+                    this.bulkLabelCopies = 1;
+                    this.bulkLabelFormat = 'standard';
+                    this.showBulkLabelModal = true;
+                },
+                
+                async printBulkLabels() {
+                    const selectedItems = this.items.filter(item => 
+                        this.selectedItemsForBulkLabel.includes(item.id)
+                    );
+                    
+                    if (selectedItems.length === 0) {
+                        this.showNotificationMessage('Pilih minimal satu item untuk label', 'error');
+                        return;
+                    }
+                    
+                    const printWindow = window.open('', '_blank');
+                    let labelsHTML = '';
+                    
+                    selectedItems.forEach(item => {
+                        for (let i = 0; i < this.bulkLabelCopies; i++) {
+                            labelsHTML += `
+                                <div class="label" style="width: 3in; height: 2in; border: 1px solid #000; padding: 0.1in; margin: 0.1in; display: inline-block; vertical-align: top; page-break-inside: avoid; background: white;">
+                                    <div style="text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                                        <div>
+                                            <h4 style="margin: 0.05in 0; font-size: 14px; font-weight: bold; word-break: break-word;">${item.article}</h4>
+                                            <p style="margin: 0.03in 0; font-size: 10px; color: #555;">${item.komponen}</p>
+                                            <p style="margin: 0.02in 0; font-size: 9px;">ID: ${item.id} | PO: ${item.noPo || '-'}</p>
+                                        </div>
+                                        <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
+                                            <p style="margin: 0; font-weight: bold; font-size: 16px;">${item.kolom || 'LOKASI'}</p>
+                                        </div>
+                                        <div>
+                                            <p style="margin: 0.03in 0; font-size: 11px; font-weight: bold;">Stok: ${item.qty} | Min: ${item.minStock}</p>
+                                            ${this.bulkLabelFormat !== 'simple' ? `
+                                            <div style="margin: 0.05in auto; width: 0.6in; height: 0.6in; background: #e0e0e0; display: flex; align-items: center; justify-content: center;">
+                                                <span style="font-size: 8px; color: #666;">QR Code</span>
+                                            </div>
+                                            ` : ''}
+                                            <p style="font-size: 8px; color: #666; margin-top: 0.05in;">
+                                                ${new Date().toLocaleDateString('id-ID')} | WMS
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                    
+                    printWindow.document.write(`
+                        <!DOCTYPE html>
+                        <html>
+                            <head>
+                                <title>Bulk Labels - ${selectedItems.length} items</title>
+                                <style>
+                                    body {
+                                        font-family: Arial, sans-serif;
+                                        margin: 0;
+                                        padding: 0.25in;
+                                        background: white;
+                                    }
+                                    @media print {
+                                        body {
+                                            padding: 0 !important;
+                                            margin: 0 !important;
+                                        }
+                                        .label {
+                                            border: 1px solid #000 !important;
+                                            -webkit-print-color-adjust: exact;
+                                            print-color-adjust: exact;
+                                        }
+                                        .no-print {
+                                            display: none !important;
+                                        }
+                                        @page {
+                                            margin: 0.25in;
+                                        }
+                                    }
+                                    .label-container {
+                                        display: grid;
+                                        grid-template-columns: repeat(3, 1fr);
+                                        gap: 0.1in;
+                                    }
+                                    .controls {
+                                        margin-bottom: 10px;
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="controls no-print" style="margin-bottom: 10px;">
+                                    <button onclick="window.print()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                                        Print All Labels (${selectedItems.length * this.bulkLabelCopies})
+                                    </button>
+                                </div>
+                                <div class="label-container">
+                                    ${labelsHTML}
+                                </div>
+                            </body>
+                        </html>
+                    `);
+                    printWindow.document.close();
+                    
+                    this.showBulkLabelModal = false;
+                    this.showNotificationMessage(`${selectedItems.length} item dipilih untuk label massal`, 'success');
+                },
+                
                 // Utility methods
                 resetForm() {
                     this.currentItem = {
@@ -2066,6 +3985,7 @@
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
                         
                         this.showNotificationMessage('Data berhasil diexport ke CSV', 'success');
                     } catch (err) {
@@ -2082,6 +4002,7 @@
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
                 },
                 
                 openPrintView() {
@@ -2107,6 +4028,7 @@
                                 <p>Generated: ${new Date().toLocaleString()}</p>
                                 <p>Total Items: ${this.items.length}</p>
                                 <p>Low Stock Items: ${this.lowStockCount}</p>
+                                <p>QR Scans Today: ${this.todayScanCount}</p>
                                 
                                 <table>
                                     <thead>
@@ -2146,7 +4068,6 @@
                 },
                 
                 openSettingsModal() {
-                    // Placeholder untuk settings modal
                     this.showNotificationMessage('Settings feature coming soon', 'info');
                 },
                 
@@ -2160,6 +4081,8 @@
                 },
                 
                 formatTimeAgo(dateString) {
+                    if (!dateString) return '';
+                    
                     const date = new Date(dateString);
                     const now = new Date();
                     const diffMs = now - date;
