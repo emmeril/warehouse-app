@@ -319,73 +319,6 @@
                     </form>
                 </div>
                 
-                <!-- Quick Update Qty -->
-                <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 fade-in">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <i class="fas fa-bolt mr-3 text-green-500 bg-green-100 p-2 rounded-lg"></i>
-                        Update Qty Cepat
-                    </h3>
-                    
-                    <div class="space-y-4">
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="space-y-2">
-                                <label class="block text-gray-700 text-sm font-semibold">ID Item</label>
-                                <input
-                                    type="text"
-                                    x-model="quickUpdateId"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
-                                    placeholder="ID Item"
-                                >
-                            </div>
-                            <div class="space-y-2">
-                                <label class="block text-gray-700 text-sm font-semibold">Adj. (+/-)</label>
-                                <input
-                                    type="number"
-                                    x-model="quickUpdateAdjustment"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
-                                    placeholder="+10 atau -5"
-                                    :class="{'border-green-500': quickUpdateAdjustment > 0, 'border-red-500': quickUpdateAdjustment < 0}"
-                                >
-                            </div>
-                        </div>
-                        
-                        <div class="space-y-2">
-                            <label class="block text-gray-700 text-sm font-semibold">Atau Set Ke Nilai:</label>
-                            <input
-                                type="number"
-                                x-model="quickUpdateAbsolute"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                placeholder="Nilai absolut (misal: 100)"
-                                min="0"
-                            >
-                        </div>
-                        
-                        <div class="flex space-x-2">
-                            <button
-                                @click="updateQtyAdjustment"
-                                class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
-                                :disabled="!quickUpdateId || (!quickUpdateAdjustment && quickUpdateAbsolute === '')"
-                            >
-                                <i class="fas fa-plus-minus mr-2" :class="{'fa-spinner spinner': updatingQty}"></i>
-                                <span x-text="quickUpdateAbsolute ? 'Set Nilai' : 'Adjust Qty'"></span>
-                            </button>
-                            
-                            <button
-                                @click="openBulkUpdateModal"
-                                class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg px-4"
-                            >
-                                <i class="fas fa-layer-group mr-2"></i>
-                                Bulk
-                            </button>
-                        </div>
-                        
-                        <div class="text-xs text-gray-500 mt-2">
-                            <p><i class="fas fa-info-circle mr-1"></i> Gunakan <strong>+10</strong> untuk tambah, <strong>-5</strong> untuk kurang</p>
-                            <p>Atau masukkan nilai absolut untuk set langsung</p>
-                        </div>
-                    </div>
-                </div>
-                
                 <!-- Filter & Stats -->
                 <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 fade-in">
                     <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
@@ -677,20 +610,6 @@
                                                     x-text="item.qty"
                                                 ></span>
                                                 <div class="flex space-x-1">
-                                                    <button 
-                                                        @click="addQtyQuick(item.id, 1)"
-                                                        class="text-green-600 hover:text-green-800 transition p-1"
-                                                        title="Tambah 1"
-                                                    >
-                                                        <i class="fas fa-plus-circle"></i>
-                                                    </button>
-                                                    <button 
-                                                        @click="subtractQtyQuick(item.id, 1)"
-                                                        class="text-red-600 hover:text-red-800 transition p-1"
-                                                        title="Kurangi 1"
-                                                    >
-                                                        <i class="fas fa-minus-circle"></i>
-                                                    </button>
                                                     <button 
                                                         @click="openQtyDetailModal(item)"
                                                         class="text-blue-600 hover:text-blue-800 transition p-1"
@@ -2289,9 +2208,6 @@
                     komponen: '',
                     search: ''
                 },
-                quickUpdateId: '',
-                quickUpdateAdjustment: 0,
-                quickUpdateAbsolute: '',
                 loading: false,
                 error: '',
                 showNotification: false,
@@ -2337,7 +2253,6 @@
                 
                 // Loading states
                 savingItem: false,
-                updatingQty: false,
                 qtyUpdateLoading: false,
                 qtyHistoryLoading: false,
                 bulkUpdateLoading: false,
@@ -3199,7 +3114,7 @@
                     this.loadScanLogs();
                 },
                 
-                // Existing methods (sama seperti sebelumnya)
+                // Existing methods
                 async saveItem() {
                     // Validasi
                     if (!this.currentItem.article.trim() || !this.currentItem.komponen.trim()) {
@@ -3292,75 +3207,6 @@
                         
                     } catch (err) {
                         this.showNotificationMessage('Gagal menghapus data: ' + err.message, 'error');
-                    }
-                },
-                
-                async updateQtyAdjustment() {
-                    if (!this.quickUpdateId) {
-                        this.showNotificationMessage('ID Item harus diisi', 'error');
-                        return;
-                    }
-                    
-                    // Cek apakah menggunakan mode adjustment atau absolute
-                    const useAdjustment = this.quickUpdateAdjustment !== 0 && this.quickUpdateAdjustment !== '';
-                    const useAbsolute = this.quickUpdateAbsolute !== '' && this.quickUpdateAbsolute !== null;
-                    
-                    if (!useAdjustment && !useAbsolute) {
-                        this.showNotificationMessage('Masukkan adjustment atau nilai absolut', 'error');
-                        return;
-                    }
-                    
-                    this.updatingQty = true;
-                    
-                    try {
-                        const payload = {
-                            changeType: 'adjustment',
-                            notes: 'Quick update via adjustment',
-                            updatedBy: 'User'
-                        };
-                        
-                        if (useAdjustment) {
-                            payload.adjustment = parseInt(this.quickUpdateAdjustment);
-                            payload.notes = `Quick adjustment: ${payload.adjustment > 0 ? '+' : ''}${payload.adjustment}`;
-                            payload.changeType = payload.adjustment > 0 ? 'inbound' : 'outbound';
-                        } else if (useAbsolute) {
-                            payload.newQty = parseInt(this.quickUpdateAbsolute);
-                            payload.notes = `Quick set to: ${payload.newQty}`;
-                            payload.changeType = 'manual';
-                        }
-                        
-                        const response = await fetch(`/api/items/${this.quickUpdateId}/update-qty`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        
-                        if (!response.ok) {
-                            const errorData = await response.json();
-                            throw new Error(errorData.message || 'Gagal mengupdate qty');
-                        }
-                        
-                        const result = await response.json();
-                        
-                        // Update local data
-                        await this.loadItems();
-                        
-                        // Reset form
-                        this.quickUpdateId = '';
-                        this.quickUpdateAdjustment = 0;
-                        this.quickUpdateAbsolute = '';
-                        
-                        this.showNotificationMessage(
-                            useAdjustment ? 
-                                `Qty berhasil diadjust ${payload.adjustment > 0 ? '+' : ''}${payload.adjustment}` :
-                                `Qty berhasil diset ke ${payload.newQty}`,
-                            'success'
-                        );
-                        
-                    } catch (err) {
-                        this.showNotificationMessage('Gagal memperbarui Qty: ' + err.message, 'error');
-                    } finally {
-                        this.updatingQty = false;
                     }
                 },
                 
@@ -3573,21 +3419,6 @@
                     } finally {
                         this.bulkUpdateLoading = false;
                     }
-                },
-                
-                // Methods untuk quick adjust tombol di tabel
-                addQtyQuick(itemId, amount = 1) {
-                    this.quickUpdateId = itemId;
-                    this.quickUpdateAdjustment = amount;
-                    this.quickUpdateAbsolute = '';
-                    this.updateQtyAdjustment();
-                },
-                
-                subtractQtyQuick(itemId, amount = 1) {
-                    this.quickUpdateId = itemId;
-                    this.quickUpdateAdjustment = -amount;
-                    this.quickUpdateAbsolute = '';
-                    this.updateQtyAdjustment();
                 },
                 
                 // Methods untuk fitur label
