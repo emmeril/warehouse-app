@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warehouse Management System v3.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Custom animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(-20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        .slide-in { animation: slideIn 0.3s ease-out; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        
+        /* Modal animations */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 200ms, transform 200ms; }
+        .modal-exit { opacity: 1; transform: scale(1); }
+        .modal-exit-active { opacity: 0; transform: scale(0.95); transition: opacity 200ms, transform 200ms; }
+        
+        /* Table row hover */
+        .table-row-hover:hover { background-color: #f8fafc; }
+        
+        /* Custom utilities */
+        .text-shadow { text-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        
+        /* Loading spinner */
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Badge colors */
+        .badge-red { background-color: #fee2e2; color: #dc2626; }
+        .badge-green { background-color: #d1fae5; color: #059669; }
+        .badge-blue { background-color: #dbeafe; color: #2563eb; }
+        .badge-yellow { background-color: #fef3c7; color: #d97706; }
+        .badge-purple { background-color: #ede9fe; color: #7c3aed; }
+        .badge-gray { background-color: #f3f4f6; color: #4b5563; }
+        
+        /* Print styles */
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+        }
+        
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen" x-data="warehouseApp()" x-init="init()" x-cloak>
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="mb-10 fade-in">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 class="text-3xl md:text-4xl font-bold text-gray-800 text-shadow">
+                        <i class="fas fa-warehouse mr-3 text-blue-600"></i>
+                        Warehouse Management System
+                    </h1>
+                    <p class="text-gray-600 mt-2">Sistem Manajemen Gudang Terintegrasi - v3.0</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="hidden md:block text-right">
+                        <div class="text-sm text-gray-500">Status Sistem</div>
+                        <div class="flex items-center">
+                            <div class="h-2 w-2 rounded-full bg-green-500 mr-2 animate-pulse"></div>
+                            <span class="text-green-600 font-medium">Online</span>
+                        </div>
+                    </div>
+                    <button @click="exportToCSV" class="bg-green-100 hover:bg-green-200 text-green-800 font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-sm hover:shadow">
+                        <i class="fas fa-file-export mr-2"></i>Export CSV
+                    </button>
+                    <button @click="openSettingsModal" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Forms & Filters -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Form Tambah/Edit Item -->
+                <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 fade-in">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6 pb-3 border-b flex items-center">
+                        <i class="fas fa-edit mr-3 text-blue-500 bg-blue-100 p-2 rounded-lg"></i>
+                        <span x-text="currentItem.id ? 'Edit Item' : 'Tambah Item Baru'"></span>
+                    </h2>
+                    
+                    <form @submit.prevent="saveItem" class="space-y-5">
+                        <input type="hidden" x-model="currentItem.id">
+                        
+                        <div class="space-y-2">
+                            <label class="block text-gray-700 font-semibold text-sm">
+                                Article <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                x-model="currentItem.article"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                required
+                                placeholder="Contoh: Bearing 6201"
+                            >
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <label class="block text-gray-700 font-semibold text-sm">
+                                Komponen <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                x-model="currentItem.komponen"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                required
+                                placeholder="Contoh: Mesin Utama"
+                            >
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <label class="block text-gray-700 font-semibold text-sm">
+                                No. Purchase Order
+                            </label>
+                            <input
+                                type="text"
+                                x-model="currentItem.noPo"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                placeholder="Contoh: PO-2023-001"
+                            >
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="block text-gray-700 font-semibold text-sm">
+                                    Order (Dipesan)
+                                </label>
+                                <input
+                                    type="number"
+                                    x-model="currentItem.order"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                    min="0"
+                                >
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <label class="block text-gray-700 font-semibold text-sm">
+                                    Qty (Stok) <span class="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    x-model="currentItem.qty"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                    min="0"
+                                    required
+                                >
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="block text-gray-700 font-semibold text-sm">
+                                    Min Stock
+                                </label>
+                                <input
+                                    type="number"
+                                    x-model="currentItem.minStock"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                    min="0"
+                                    value="10"
+                                >
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <label class="block text-gray-700 font-semibold text-sm">
+                                    Lokasi (Kolom/Rak)
+                                </label>
+                                <div class="relative">
+                                    <input
+                                        type="text"
+                                        x-model="currentItem.kolom"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                        placeholder="Contoh: A1, B2, C3"
+                                        list="locationSuggestions"
+                                    >
+                                    <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                        <i class="fas fa-map-marker-alt text-gray-400"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <datalist id="locationSuggestions">
+                            <template x-for="location in uniqueLocationsList" :key="location">
+                                <option :value="location"></option>
+                            </template>
+                        </datalist>
+                        
+                        <div class="pt-4 flex space-x-3">
+                            <button
+                                type="submit"
+                                class="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
+                                :disabled="savingItem"
+                            >
+                                <i class="fas fa-save mr-2" :class="{'fa-spinner spinner': savingItem}"></i>
+                                <span x-text="currentItem.id ? 'Update Item' : 'Simpan Item'"></span>
+                            </button>
+                            
+                            <button
+                                type="button"
+                                @click="resetForm"
+                                class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
+                            >
+                                <i class="fas fa-redo mr-2"></i>
+                                Reset
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Quick Update Qty -->
+                <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 fade-in">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-bolt mr-3 text-green-500 bg-green-100 p-2 rounded-lg"></i>
+                        Update Qty Cepat
+                    </h3>
+                    
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="space-y-2">
+                                <label class="block text-gray-700 text-sm font-semibold">ID Item</label>
+                                <input
+                                    type="text"
+                                    x-model="quickUpdateId"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                                    placeholder="ID Item"
+                                >
+                            </div>
+                            <div class="space-y-2">
+                                <label class="block text-gray-700 text-sm font-semibold">Adj. (+/-)</label>
+                                <input
+                                    type="number"
+                                    x-model="quickUpdateAdjustment"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                                    placeholder="+10 atau -5"
+                                    :class="{'border-green-500': quickUpdateAdjustment > 0, 'border-red-500': quickUpdateAdjustment < 0}"
+                                >
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <label class="block text-gray-700 text-sm font-semibold">Atau Set Ke Nilai:</label>
+                            <input
+                                type="number"
+                                x-model="quickUpdateAbsolute"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                placeholder="Nilai absolut (misal: 100)"
+                                min="0"
+                            >
+                        </div>
+                        
+                        <div class="flex space-x-2">
+                            <button
+                                @click="updateQtyAdjustment"
+                                class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
+                                :disabled="!quickUpdateId || (!quickUpdateAdjustment && quickUpdateAbsolute === '')"
+                            >
+                                <i class="fas fa-plus-minus mr-2" :class="{'fa-spinner spinner': updatingQty}"></i>
+                                <span x-text="quickUpdateAbsolute ? 'Set Nilai' : 'Adjust Qty'"></span>
+                            </button>
+                            
+                            <button
+                                @click="openBulkUpdateModal"
+                                class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg px-4"
+                            >
+                                <i class="fas fa-layer-group mr-2"></i>
+                                Bulk
+                            </button>
+                        </div>
+                        
+                        <div class="text-xs text-gray-500 mt-2">
+                            <p><i class="fas fa-info-circle mr-1"></i> Gunakan <strong>+10</strong> untuk tambah, <strong>-5</strong> untuk kurang</p>
+                            <p>Atau masukkan nilai absolut untuk set langsung</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Filter & Stats -->
+                <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 fade-in">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-filter mr-3 text-purple-500 bg-purple-100 p-2 rounded-lg"></i>
+                        Filter & Statistik
+                    </h3>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-gray-700 font-semibold text-sm mb-2">
+                                Cari Item:
+                            </label>
+                            <div class="relative">
+                                <input
+                                    type="text"
+                                    x-model="filter.search"
+                                    @keyup.enter="applyFilter"
+                                    class="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                                    placeholder="Cari article, komponen, PO..."
+                                >
+                                <i class="fas fa-search absolute left-3 top-3.5 text-gray-400"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-gray-700 font-semibold text-sm mb-2">
+                                    Lokasi:
+                                </label>
+                                <select
+                                    x-model="filter.kolom"
+                                    @change="applyFilter"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">Semua Lokasi</option>
+                                    <template x-for="location in uniqueLocationsList" :key="location">
+                                        <option :value="location" x-text="location"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-gray-700 font-semibold text-sm mb-2">
+                                    Komponen:
+                                </label>
+                                <select
+                                    x-model="filter.komponen"
+                                    @change="applyFilter"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">Semua Komponen</option>
+                                    <template x-for="komp in uniqueKomponenList" :key="komp">
+                                        <option :value="komp" x-text="komp"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="flex space-x-2 pt-2">
+                            <button
+                                @click="applyFilter"
+                                class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+                            >
+                                <i class="fas fa-filter mr-2"></i>Terapkan
+                            </button>
+                            <button
+                                @click="clearFilter"
+                                class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200"
+                            >
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Stats Cards -->
+                    <div class="pt-6 mt-6 border-t border-gray-200">
+                        <h4 class="font-bold text-gray-800 mb-4">Statistik Gudang:</h4>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                <div class="flex items-center">
+                                    <div class="bg-blue-100 p-2 rounded-lg mr-3">
+                                        <i class="fas fa-boxes text-blue-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-blue-700 font-medium">Total Items</p>
+                                        <p class="text-xl font-bold text-blue-800" x-text="stats.totalItems || items.length"></p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-green-50 p-3 rounded-lg border border-green-100">
+                                <div class="flex items-center">
+                                    <div class="bg-green-100 p-2 rounded-lg mr-3">
+                                        <i class="fas fa-box-open text-green-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-green-700 font-medium">Total Qty</p>
+                                        <p class="text-xl font-bold text-green-800" x-text="formatNumber(totalQty)"></p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-amber-50 p-3 rounded-lg border border-amber-100">
+                                <div class="flex items-center">
+                                    <div class="bg-amber-100 p-2 rounded-lg mr-3">
+                                        <i class="fas fa-clipboard-list text-amber-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-amber-700 font-medium">Total Order</p>
+                                        <p class="text-xl font-bold text-amber-800" x-text="formatNumber(totalOrder)"></p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-red-50 p-3 rounded-lg border border-red-100">
+                                <div class="flex items-center">
+                                    <div class="bg-red-100 p-2 rounded-lg mr-3">
+                                        <i class="fas fa-exclamation-triangle text-red-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-red-700 font-medium">Stok Rendah</p>
+                                        <p class="text-xl font-bold text-red-800" x-text="lowStockCount"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: Items Table & Dashboard -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Items Table Section -->
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 fade-in">
+                    <div class="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <h2 class="text-xl font-bold text-gray-800">
+                                <i class="fas fa-boxes mr-2 text-orange-500"></i>
+                                Daftar Item Gudang
+                                <span class="text-sm font-normal text-gray-600 ml-2" x-text="'(' + items.length + ' items)'"></span>
+                            </h2>
+                            <p class="text-gray-600 text-sm mt-1" x-show="filterActive">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                <span x-text="getFilterDescription()"></span>
+                            </p>
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-2">
+                            <div class="relative">
+                                <input
+                                    type="text"
+                                    x-model="tableSearch"
+                                    @keyup.enter="loadItems"
+                                    class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    placeholder="Cari di tabel..."
+                                >
+                                <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-sm"></i>
+                            </div>
+                            <button
+                                @click="loadItems"
+                                class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm"
+                                title="Refresh data"
+                            >
+                                <i class="fas fa-sync-alt mr-2" :class="{'fa-spinner spinner': loading}"></i>
+                                Refresh
+                            </button>
+                            <button
+                                @click="showLowStock = !showLowStock"
+                                :class="showLowStock ? 'bg-red-500 text-white' : 'bg-red-100 text-red-700'"
+                                class="font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm"
+                                title="Tampilkan item dengan stok rendah"
+                            >
+                                <i class="fas fa-exclamation-triangle mr-2"></i>
+                                Stok Rendah
+                            </button>
+                            <button
+                                @click="openPrintView"
+                                class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm"
+                            >
+                                <i class="fas fa-print mr-2"></i>
+                                Print
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading/Error States -->
+                    <div x-show="loading" class="p-10 text-center">
+                        <div class="inline-flex flex-col items-center">
+                            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                            <p class="text-gray-600">Memuat data gudang...</p>
+                        </div>
+                    </div>
+                    
+                    <div x-show="error && !loading" class="p-4 bg-red-50 border-l-4 border-red-500 mx-6 mt-4 rounded">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-circle text-red-400 text-xl"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-red-800">Terjadi Kesalahan</h3>
+                                <div class="mt-1 text-sm text-red-700" x-text="error"></div>
+                            </div>
+                            <div class="ml-auto pl-3">
+                                <button @click="error = ''" class="text-red-500 hover:text-red-700">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Items Table -->
+                    <div x-show="!loading" class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('id')">
+                                        ID <i class="fas fa-sort ml-1"></i>
+                                    </th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('article')">
+                                        Article <i class="fas fa-sort ml-1"></i>
+                                    </th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Komponen</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">No. PO</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('order')">
+                                        Order <i class="fas fa-sort ml-1"></i>
+                                    </th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('qty')">
+                                        Qty <i class="fas fa-sort ml-1"></i>
+                                    </th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Lokasi</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <template x-for="item in filteredAndSortedItems" :key="item.id">
+                                    <tr 
+                                        class="table-row-hover transition duration-150"
+                                        :class="{'bg-red-50': item.qty <= item.minStock}"
+                                    >
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <span class="text-sm font-mono font-medium text-gray-900" x-text="item.id"></span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <div class="text-sm font-medium text-gray-900" x-text="item.article"></div>
+                                            <div class="text-xs text-gray-500" x-text="'Min: ' + item.minStock"></div>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <div class="text-sm text-gray-800" x-text="item.komponen"></div>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <div class="text-sm text-gray-800" x-text="item.noPo || '-'"></div>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <div class="text-sm text-gray-800" x-text="item.order"></div>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <div class="flex items-center space-x-2">
+                                                <span 
+                                                    class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
+                                                    :class="getQtyBadgeClass(item.qty, item.minStock)"
+                                                    x-text="item.qty"
+                                                ></span>
+                                                <div class="flex space-x-1">
+                                                    <button 
+                                                        @click="addQtyQuick(item.id, 1)"
+                                                        class="text-green-600 hover:text-green-800 transition p-1"
+                                                        title="Tambah 1"
+                                                    >
+                                                        <i class="fas fa-plus-circle"></i>
+                                                    </button>
+                                                    <button 
+                                                        @click="subtractQtyQuick(item.id, 1)"
+                                                        class="text-red-600 hover:text-red-800 transition p-1"
+                                                        title="Kurangi 1"
+                                                    >
+                                                        <i class="fas fa-minus-circle"></i>
+                                                    </button>
+                                                    <button 
+                                                        @click="openQtyDetailModal(item)"
+                                                        class="text-blue-600 hover:text-blue-800 transition p-1"
+                                                        title="Update Qty Detail"
+                                                    >
+                                                        <i class="fas fa-edit text-xs"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <span 
+                                                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800"
+                                                x-text="item.kolom || 'Belum ada'"
+                                            ></span>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <span 
+                                                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
+                                                :class="getStatusBadgeClass(item.qty, item.minStock)"
+                                            >
+                                                <i :class="getStatusIcon(item.qty, item.minStock)"></i>
+                                                <span x-text="getStatusText(item.qty, item.minStock)"></span>
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                                            <div class="flex space-x-2">
+                                                <button 
+                                                    @click="editItem(item)"
+                                                    class="text-blue-600 hover:text-blue-900 transition p-1"
+                                                    title="Edit item"
+                                                >
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button 
+                                                    @click="openQtyHistoryModal(item)"
+                                                    class="text-purple-600 hover:text-purple-900 transition p-1"
+                                                    title="Riwayat Qty"
+                                                >
+                                                    <i class="fas fa-history"></i>
+                                                </button>
+                                                <button 
+                                                    @click="duplicateItem(item)"
+                                                    class="text-green-600 hover:text-green-900 transition p-1"
+                                                    title="Duplikat item"
+                                                >
+                                                    <i class="fas fa-copy"></i>
+                                                </button>
+                                                <button 
+                                                    @click="deleteItem(item.id)"
+                                                    class="text-red-600 hover:text-red-900 transition p-1"
+                                                    title="Hapus item"
+                                                >
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                                
+                                <tr x-show="filteredAndSortedItems.length === 0 && !loading">
+                                    <td colspan="9" class="px-6 py-16 text-center">
+                                        <div class="inline-flex flex-col items-center">
+                                            <i class="fas fa-box-open text-gray-300 text-5xl mb-4"></i>
+                                            <p class="text-gray-500 font-medium text-lg">Tidak ada data item</p>
+                                            <p class="text-gray-400 mt-2" x-text="showLowStock ? 'Tidak ada item dengan stok rendah' : 'Tambahkan item baru menggunakan form di sebelah kiri'"></p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Table Footer -->
+                    <div class="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div class="text-sm text-gray-700">
+                            Menampilkan <span class="font-semibold" x-text="filteredAndSortedItems.length"></span> dari 
+                            <span class="font-semibold" x-text="items.length"></span> item
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <div class="text-sm text-gray-700">
+                                <span class="font-semibold text-red-600" x-text="lowStockCount"></span> item dengan stok rendah
+                            </div>
+                            <div class="flex space-x-2">
+                                <button
+                                    @click="previousPage"
+                                    :disabled="currentPage === 1"
+                                    class="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"
+                                >
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <span class="px-3 py-1 text-sm" x-text="`Page ${currentPage}`"></span>
+                                <button
+                                    @click="nextPage"
+                                    :disabled="currentPage * itemsPerPage >= items.length"
+                                    class="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"
+                                >
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dashboard Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Low Stock Alert -->
+                    <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-200 rounded-xl p-5 fade-in">
+                        <div class="flex items-center">
+                            <div class="bg-red-100 p-3 rounded-lg mr-4">
+                                <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-red-800">Stok Rendah</h3>
+                                <p class="text-red-700 text-2xl font-bold" x-text="lowStockCount"></p>
+                                <p class="text-red-600 text-sm">Item perlu restock</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Stock Status -->
+                    <div class="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl p-5 fade-in">
+                        <div class="flex items-center">
+                            <div class="bg-green-100 p-3 rounded-lg mr-4">
+                                <i class="fas fa-check-circle text-green-600 text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-green-800">Stok Aman</h3>
+                                <p class="text-green-700 text-2xl font-bold" x-text="safeStockCount"></p>
+                                <p class="text-green-600 text-sm">Item tersedia</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Summary -->
+                    <div class="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-5 fade-in">
+                        <div class="flex items-center">
+                            <div class="bg-blue-100 p-3 rounded-lg mr-4">
+                                <i class="fas fa-chart-bar text-blue-600 text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-blue-800">Ringkasan</h3>
+                                <p class="text-blue-700 text-sm">
+                                    <span x-text="uniqueLocations"></span> lokasi terisi • 
+                                    <span x-text="itemsWithNoPo"></span> item dengan PO
+                                </p>
+                                <p class="text-blue-700 text-sm">
+                                    <span x-text="formatNumber(totalQty)"></span> total stok
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Activities -->
+                <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 fade-in">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-history mr-3 text-purple-500 bg-purple-100 p-2 rounded-lg"></i>
+                        Aktivitas Terbaru
+                    </h3>
+                    <div class="space-y-3">
+                        <template x-for="activity in recentActivities" :key="activity.id">
+                            <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                                <div class="flex-shrink-0 mr-3">
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center" 
+                                         :class="activity.changeAmount > 0 ? 'bg-green-100' : 'bg-red-100'">
+                                        <i :class="activity.changeAmount > 0 ? 'fas fa-arrow-up text-green-600' : 'fas fa-arrow-down text-red-600'"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="text-sm font-medium text-gray-900" x-text="activity.article"></p>
+                                    <p class="text-xs text-gray-500">
+                                        <span x-text="activity.notes"></span> • 
+                                        <span x-text="formatTimeAgo(activity.createdAt)"></span>
+                                    </p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-sm font-semibold" 
+                                          :class="activity.changeAmount > 0 ? 'text-green-600' : 'text-red-600'"
+                                          x-text="(activity.changeAmount > 0 ? '+' : '') + activity.changeAmount"></span>
+                                    <p class="text-xs text-gray-500" x-text="`${activity.oldQty} → ${activity.newQty}`"></p>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="recentActivities.length === 0" class="text-center py-4 text-gray-500">
+                            <i class="fas fa-history text-2xl mb-2 block"></i>
+                            <p>Belum ada aktivitas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <footer class="mt-12 pt-8 border-t border-gray-200">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <p class="text-gray-600">
+                        <i class="fas fa-database mr-1"></i>
+                        Warehouse Management System v3.0
+                    </p>
+                    <p class="text-gray-500 text-sm mt-1">
+                        Dibuat dengan Express.js, SQLite, Tailwind CSS, dan Alpine.js
+                    </p>
+                </div>
+                <div class="flex space-x-4">
+                    <span class="text-gray-500 text-sm">
+                        <i class="far fa-clock mr-1"></i>
+                        <span x-text="new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })"></span>
+                    </span>
+                    <span class="text-gray-500 text-sm">
+                        <i class="fas fa-server mr-1"></i>
+                        <span x-text="`${items.length} items`"></span>
+                    </span>
+                </div>
+            </div>
+        </footer>
+    </div>
+    
+    <!-- === MODALS === -->
+    
+    <!-- Modal Detail Update Qty -->
+    <div 
+        x-show="showQtyDetailModal" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+        @click.away="showQtyDetailModal = false"
+        x-cloak
+    >
+        <div class="relative top-10 mx-auto p-4 border w-full max-w-2xl shadow-lg rounded-xl bg-white" @click.stop>
+            <div class="flex justify-between items-center pb-4 border-b">
+                <h3 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-exchange-alt mr-2 text-blue-600"></i>
+                    Detail Update Quantity
+                </h3>
+                <button @click="showQtyDetailModal = false" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="py-4">
+                <!-- Form Update Qty Detail -->
+                <div x-show="!qtyHistoryLoading && selectedItemForQtyUpdate">
+                    <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                        <h4 class="font-bold text-blue-800 mb-2">Item yang akan diupdate:</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-blue-700">Article</p>
+                                <p class="font-bold" x-text="selectedItemForQtyUpdate.article"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-blue-700">Stok Saat Ini</p>
+                                <p class="font-bold text-lg" x-text="selectedItemForQtyUpdate.qty"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-blue-700">Komponen</p>
+                                <p class="font-medium" x-text="selectedItemForQtyUpdate.komponen"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-blue-700">Min Stock</p>
+                                <p class="font-medium" x-text="selectedItemForQtyUpdate.minStock"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form @submit.prevent="submitQtyDetailUpdate" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="block text-gray-700 font-semibold text-sm">
+                                    Tipe Update
+                                </label>
+                                <select 
+                                    x-model="qtyUpdateDetail.changeType"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                >
+                                    <option value="inbound">Inbound (Masuk)</option>
+                                    <option value="outbound">Outbound (Keluar)</option>
+                                    <option value="adjustment">Adjustment (Penyesuaian)</option>
+                                    <option value="correction">Koreksi</option>
+                                    <option value="manual">Manual Update</option>
+                                </select>
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <label class="block text-gray-700 font-semibold text-sm">
+                                    Updated By
+                                </label>
+                                <input
+                                    type="text"
+                                    x-model="qtyUpdateDetail.updatedBy"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                    placeholder="Nama operator"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <!-- Mode Adjustment -->
+                            <div x-show="qtyUpdateDetail.method === 'adjust'" class="space-y-2">
+                                <label class="block text-gray-700 font-semibold text-sm">
+                                    Adjustment (+/-) <span class="text-red-500">*</span>
+                                </label>
+                                <div class="relative">
+                                    <input
+                                        type="number"
+                                        x-model="qtyUpdateDetail.adjustment"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                        placeholder="Contoh: +10 atau -5"
+                                        required
+                                        :class="{'border-green-500': qtyUpdateDetail.adjustment > 0, 'border-red-500': qtyUpdateDetail.adjustment < 0}"
+                                    >
+                                    <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                                        <span class="text-sm" 
+                                              :class="{'text-green-600': qtyUpdateDetail.adjustment > 0, 'text-red-600': qtyUpdateDetail.adjustment < 0}"
+                                              x-text="qtyUpdateDetail.adjustment > 0 ? `(+${qtyUpdateDetail.adjustment})` : `(${qtyUpdateDetail.adjustment})`"></span>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    Stok saat ini: <span class="font-bold" x-text="selectedItemForQtyUpdate.qty"></span> 
+                                    → Hasil: <span class="font-bold text-green-600" 
+                                             x-text="parseInt(selectedItemForQtyUpdate.qty) + parseInt(qtyUpdateDetail.adjustment || 0)"></span>
+                                </p>
+                            </div>
+                            
+                            <!-- Mode Set Absolut -->
+                            <div x-show="qtyUpdateDetail.method === 'set'" class="space-y-2">
+                                <label class="block text-gray-700 font-semibold text-sm">
+                                    Qty Baru <span class="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    x-model="qtyUpdateDetail.newQty"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                    min="0"
+                                    required
+                                >
+                                <p class="text-xs text-gray-500 mt-1">
+                                    Stok saat ini: <span class="font-bold" x-text="selectedItemForQtyUpdate.qty"></span> 
+                                    → Perubahan: <span class="font-bold" 
+                                                     :class="{'text-green-600': (parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)) > 0, 'text-red-600': (parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)) < 0}"
+                                                     x-text="(parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)) > 0 ? `+${parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)}` : (parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0))"></span>
+                                </p>
+                            </div>
+                            
+                            <!-- Radio buttons untuk pilih metode -->
+                            <div class="flex space-x-4 pt-2">
+                                <label class="flex items-center">
+                                    <input 
+                                        type="radio" 
+                                        name="updateMethod" 
+                                        value="adjust" 
+                                        x-model="qtyUpdateDetail.method"
+                                        class="mr-2"
+                                        checked
+                                    >
+                                    <span class="text-sm">Adjust (+/-)</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input 
+                                        type="radio" 
+                                        name="updateMethod" 
+                                        value="set" 
+                                        x-model="qtyUpdateDetail.method"
+                                        class="mr-2"
+                                    >
+                                    <span class="text-sm">Set ke nilai</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="block text-gray-700 font-semibold text-sm">
+                                Catatan / Alasan
+                            </label>
+                            <textarea
+                                x-model="qtyUpdateDetail.notes"
+                                rows="3"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                placeholder="Jelaskan alasan perubahan qty..."
+                            ></textarea>
+                        </div>
+
+                        <div class="pt-4 flex space-x-3">
+                            <button
+                                type="submit"
+                                class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
+                                :disabled="qtyUpdateLoading"
+                            >
+                                <i class="fas fa-check-circle mr-2" :class="{'fa-spinner spinner': qtyUpdateLoading}"></i>
+                                <span x-text="qtyUpdateLoading ? 'Processing...' : 'Update Quantity'"></span>
+                            </button>
+                            
+                            <button
+                                type="button"
+                                @click="showQtyDetailModal = false"
+                                class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
+                            >
+                                Batal
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Riwayat Update Qty -->
+    <div 
+        x-show="showQtyHistoryModal" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+        @click.away="showQtyHistoryModal = false"
+        x-cloak
+    >
+        <div class="relative top-10 mx-auto p-4 border w-full max-w-4xl shadow-lg rounded-xl bg-white" @click.stop>
+            <div class="flex justify-between items-center pb-4 border-b">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-800">
+                        <i class="fas fa-history mr-2 text-purple-600"></i>
+                        Riwayat Update Quantity
+                    </h3>
+                    <p class="text-gray-600 text-sm" x-text="selectedItemForHistory ? 'Item: ' + selectedItemForHistory.article : ''"></p>
+                </div>
+                <button @click="showQtyHistoryModal = false" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="py-4">
+                <!-- Filter Riwayat -->
+                <div class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div class="flex flex-wrap gap-2">
+                        <select 
+                            x-model="historyFilter.changeType"
+                            @change="loadQtyHistory()"
+                            class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="">Semua Tipe</option>
+                            <option value="inbound">Inbound</option>
+                            <option value="outbound">Outbound</option>
+                            <option value="adjustment">Adjustment</option>
+                            <option value="correction">Koreksi</option>
+                        </select>
+                        
+                        <select 
+                            x-model="historyFilter.limit"
+                            @change="loadQtyHistory()"
+                            class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="10">10 terakhir</option>
+                            <option value="25">25 terakhir</option>
+                            <option value="50">50 terakhir</option>
+                            <option value="100">100 terakhir</option>
+                        </select>
+                        
+                        <input
+                            type="date"
+                            x-model="historyFilter.startDate"
+                            @change="loadQtyHistory()"
+                            class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Dari tanggal"
+                        >
+                    </div>
+                    
+                    <button
+                        @click="exportQtyHistory"
+                        class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold py-2 px-4 rounded-lg transition duration-200"
+                    >
+                        <i class="fas fa-file-export mr-2"></i>Export
+                    </button>
+                </div>
+
+                <!-- Tabel Riwayat -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tanggal</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Dari</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Ke</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Perubahan</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tipe</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Catatan</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Oleh</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="history in qtyHistory" :key="history.id">
+                                <tr class="hover:bg-gray-50 transition">
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                                        <span x-text="formatDateTime(history.createdAt)"></span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap">
+                                        <span class="text-sm font-medium text-gray-900" x-text="history.oldQty"></span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap">
+                                        <span class="text-sm font-medium text-green-900" x-text="history.newQty"></span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap">
+                                        <span 
+                                            class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
+                                            :class="{
+                                                'badge-green': history.changeAmount > 0,
+                                                'badge-red': history.changeAmount < 0,
+                                                'bg-gray-100 text-gray-800': history.changeAmount === 0
+                                            }"
+                                        >
+                                            <i 
+                                                :class="history.changeAmount > 0 ? 'fas fa-arrow-up mr-1' : history.changeAmount < 0 ? 'fas fa-arrow-down mr-1' : 'fas fa-equals mr-1'"
+                                            ></i>
+                                            <span x-text="history.changeAmount > 0 ? '+' + history.changeAmount : history.changeAmount"></span>
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap">
+                                        <span 
+                                            class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
+                                            :class="{
+                                                'badge-blue': history.changeType === 'inbound',
+                                                'badge-red': history.changeType === 'outbound',
+                                                'badge-purple': history.changeType === 'adjustment',
+                                                'badge-yellow': history.changeType === 'correction',
+                                                'bg-gray-100 text-gray-800': history.changeType === 'manual'
+                                            }"
+                                            x-text="history.changeType"
+                                        ></span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-900 max-w-xs" :title="history.notes">
+                                        <span x-text="history.notes"></span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                                        <span x-text="history.updatedBy"></span>
+                                    </td>
+                                </tr>
+                            </template>
+                            
+                            <tr x-show="qtyHistory.length === 0 && !qtyHistoryLoading">
+                                <td colspan="7" class="px-4 py-8 text-center">
+                                    <div class="inline-flex flex-col items-center">
+                                        <i class="fas fa-history text-gray-300 text-4xl mb-3"></i>
+                                        <p class="text-gray-500">Belum ada riwayat perubahan</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Loading History -->
+                <div x-show="qtyHistoryLoading" class="text-center py-8">
+                    <div class="inline-flex flex-col items-center">
+                        <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500 mb-3"></div>
+                        <p class="text-gray-600">Memuat riwayat...</p>
+                    </div>
+                </div>
+                
+                <!-- Summary -->
+                <div x-show="qtyHistory.length > 0" class="mt-6 pt-6 border-t border-gray-200">
+                    <h4 class="font-bold text-gray-800 mb-3">Ringkasan:</h4>
+                    <div class="grid grid-cols-4 gap-4">
+                        <div class="text-center">
+                            <p class="text-sm text-gray-500">Total Update</p>
+                            <p class="text-xl font-bold" x-text="qtyHistory.length"></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-sm text-gray-500">Inbound</p>
+                            <p class="text-xl font-bold text-green-600" x-text="getHistoryCountByType('inbound')"></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-sm text-gray-500">Outbound</p>
+                            <p class="text-xl font-bold text-red-600" x-text="getHistoryCountByType('outbound')"></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-sm text-gray-500">Adjustment</p>
+                            <p class="text-xl font-bold text-purple-600" x-text="getHistoryCountByType('adjustment')"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Bulk Update -->
+    <div 
+        x-show="showBulkUpdateModal" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+        @click.away="showBulkUpdateModal = false"
+        x-cloak
+    >
+        <div class="relative top-10 mx-auto p-4 border w-full max-w-4xl shadow-lg rounded-xl bg-white" @click.stop>
+            <div class="flex justify-between items-center pb-4 border-b">
+                <h3 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-layer-group mr-2 text-purple-600"></i>
+                    Bulk Update Quantity
+                </h3>
+                <button @click="showBulkUpdateModal = false" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="py-4">
+                <div class="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-100">
+                    <h4 class="font-bold text-yellow-800 mb-2">
+                        <i class="fas fa-info-circle mr-2"></i>Petunjuk
+                    </h4>
+                    <p class="text-sm text-yellow-700">
+                        Pilih beberapa item dan tentukan adjustment yang sama untuk semua item yang dipilih.
+                    </p>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">
+                            Pilih Items untuk Bulk Update:
+                        </label>
+                        <div class="max-h-60 overflow-y-auto border border-gray-300 rounded-lg">
+                            <template x-for="item in items" :key="item.id">
+                                <label class="flex items-center p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
+                                    <input 
+                                        type="checkbox" 
+                                        x-model="selectedItemsForBulk" 
+                                        :value="item.id"
+                                        class="mr-3"
+                                    >
+                                    <div class="flex-1">
+                                        <span class="font-medium" x-text="item.article"></span>
+                                        <div class="text-sm text-gray-500">
+                                            <span x-text="item.komponen"></span> • 
+                                            <span x-text="'Qty: ' + item.qty"></span> • 
+                                            <span x-text="'Lokasi: ' + (item.kolom || '-')"></span>
+                                        </div>
+                                    </div>
+                                </label>
+                            </template>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-2">
+                            <span x-text="selectedItemsForBulk.length"></span> item terpilih
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <label class="block text-gray-700 font-semibold text-sm">
+                                Adjustment untuk semua item
+                            </label>
+                            <input
+                                type="number"
+                                x-model="bulkUpdateData.adjustment"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                placeholder="Contoh: +10 atau -5"
+                                required
+                            >
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-gray-700 font-semibold text-sm">
+                                Catatan
+                            </label>
+                            <input
+                                type="text"
+                                x-model="bulkUpdateData.notes"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                placeholder="Alasan bulk update"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="pt-4 flex space-x-3">
+                        <button
+                            @click="submitBulkUpdate"
+                            class="flex-1 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
+                            :disabled="selectedItemsForBulk.length === 0 || bulkUpdateLoading"
+                        >
+                            <i class="fas fa-layer-group mr-2" :class="{'fa-spinner spinner': bulkUpdateLoading}"></i>
+                            <span x-text="bulkUpdateLoading ? 'Processing...' : `Update ${selectedItemsForBulk.length} Items`"></span>
+                        </button>
+                        
+                        <button
+                            @click="showBulkUpdateModal = false"
+                            class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
+                        >
+                            Batal
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div 
+        x-show="showNotification" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-2"
+        x-transition:enter-end="opacity-100 translate-y-0"
+        x-transition:leave="transition ease-in duration-300"
+        x-transition:leave-start="opacity-100 translate-y-0"
+        x-transition:leave-end="opacity-0 translate-y-2"
+        class="fixed bottom-4 right-4 max-w-sm w-full z-50"
+        x-cloak
+    >
+        <div 
+            class="rounded-xl shadow-lg p-4 border"
+            :class="notificationType === 'success' ? 'bg-green-50 border-green-200' : 
+                    notificationType === 'error' ? 'bg-red-50 border-red-200' :
+                    notificationType === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                    'bg-blue-50 border-blue-200'"
+        >
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <i 
+                        class="text-xl"
+                        :class="notificationType === 'success' ? 'fas fa-check-circle text-green-500' : 
+                                notificationType === 'error' ? 'fas fa-exclamation-circle text-red-500' :
+                                notificationType === 'warning' ? 'fas fa-exclamation-triangle text-yellow-500' :
+                                'fas fa-info-circle text-blue-500'"
+                    ></i>
+                </div>
+                <div class="ml-3 w-0 flex-1">
+                    <p class="font-medium" 
+                       :class="notificationType === 'success' ? 'text-green-800' : 
+                               notificationType === 'error' ? 'text-red-800' :
+                               notificationType === 'warning' ? 'text-yellow-800' :
+                               'text-blue-800'"
+                       x-text="notificationMessage"></p>
+                </div>
+                <div class="ml-4 flex-shrink-0 flex">
+                    <button 
+                        @click="showNotification = false"
+                        class="rounded-md inline-flex focus:outline-none"
+                        :class="notificationType === 'success' ? 'text-green-500 hover:text-green-600' : 
+                                notificationType === 'error' ? 'text-red-500 hover:text-red-600' :
+                                notificationType === 'warning' ? 'text-yellow-500 hover:text-yellow-600' :
+                                'text-blue-500 hover:text-blue-600'"
+                    >
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function warehouseApp() {
+            return {
+                // State
+                items: [],
+                currentItem: {
+                    id: null,
+                    article: '',
+                    komponen: '',
+                    noPo: '',
+                    order: 0,
+                    qty: 0,
+                    minStock: 10,
+                    kolom: ''
+                },
+                filter: {
+                    kolom: '',
+                    komponen: '',
+                    search: ''
+                },
+                quickUpdateId: '',
+                quickUpdateAdjustment: 0,
+                quickUpdateAbsolute: '',
+                loading: false,
+                error: '',
+                showNotification: false,
+                notificationMessage: '',
+                notificationType: 'success',
+                showLowStock: false,
+                
+                // State untuk fitur detail qty
+                showQtyDetailModal: false,
+                showQtyHistoryModal: false,
+                showBulkUpdateModal: false,
+                selectedItemForQtyUpdate: null,
+                selectedItemForHistory: null,
+                qtyUpdateDetail: {
+                    method: 'adjust',
+                    newQty: 0,
+                    adjustment: 0,
+                    changeType: 'adjustment',
+                    notes: '',
+                    updatedBy: ''
+                },
+                bulkUpdateData: {
+                    adjustment: 0,
+                    notes: ''
+                },
+                selectedItemsForBulk: [],
+                qtyHistory: [],
+                recentActivities: [],
+                historyFilter: {
+                    changeType: '',
+                    limit: '10',
+                    startDate: ''
+                },
+                stats: {},
+                
+                // State untuk table
+                tableSearch: '',
+                sortField: 'id',
+                sortDirection: 'asc',
+                currentPage: 1,
+                itemsPerPage: 20,
+                
+                // Loading states
+                savingItem: false,
+                updatingQty: false,
+                qtyUpdateLoading: false,
+                qtyHistoryLoading: false,
+                bulkUpdateLoading: false,
+                
+                // Computed Properties
+                get filteredItems() {
+                    let filtered = this.items;
+                    
+                    // Filter low stock
+                    if (this.showLowStock) {
+                        filtered = filtered.filter(item => item.qty <= item.minStock);
+                    }
+                    
+                    // Filter by table search
+                    if (this.tableSearch) {
+                        const search = this.tableSearch.toLowerCase();
+                        filtered = filtered.filter(item => 
+                            item.article.toLowerCase().includes(search) ||
+                            item.komponen.toLowerCase().includes(search) ||
+                            (item.noPo && item.noPo.toLowerCase().includes(search)) ||
+                            (item.kolom && item.kolom.toLowerCase().includes(search))
+                        );
+                    }
+                    
+                    return filtered;
+                },
+                
+                get filteredAndSortedItems() {
+                    let items = this.filteredItems;
+                    
+                    // Sorting
+                    items.sort((a, b) => {
+                        let aValue = a[this.sortField];
+                        let bValue = b[this.sortField];
+                        
+                        if (this.sortField === 'article' || this.sortField === 'komponen' || this.sortField === 'kolom') {
+                            aValue = aValue || '';
+                            bValue = bValue || '';
+                        }
+                        
+                        if (aValue < bValue) return this.sortDirection === 'asc' ? -1 : 1;
+                        if (aValue > bValue) return this.sortDirection === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+                    
+                    // Pagination
+                    const start = (this.currentPage - 1) * this.itemsPerPage;
+                    const end = start + this.itemsPerPage;
+                    return items.slice(start, end);
+                },
+                
+                get totalQty() {
+                    return this.items.reduce((sum, item) => sum + parseInt(item.qty || 0), 0);
+                },
+                
+                get totalOrder() {
+                    return this.items.reduce((sum, item) => sum + parseInt(item.order || 0), 0);
+                },
+                
+                get uniqueLocations() {
+                    const locations = this.items.map(item => item.kolom).filter(Boolean);
+                    return [...new Set(locations)].length;
+                },
+                
+                get uniqueLocationsList() {
+                    const locations = this.items.map(item => item.kolom).filter(Boolean);
+                    return [...new Set(locations)].sort();
+                },
+                
+                get uniqueKomponenList() {
+                    const komponen = this.items.map(item => item.komponen).filter(Boolean);
+                    return [...new Set(komponen)].sort();
+                },
+                
+                get lowStockCount() {
+                    return this.items.filter(item => item.qty <= item.minStock).length;
+                },
+                
+                get safeStockCount() {
+                    return this.items.filter(item => item.qty > item.minStock).length;
+                },
+                
+                get itemsWithNoPo() {
+                    return this.items.filter(item => item.noPo && item.noPo.trim() !== '').length;
+                },
+                
+                get filterActive() {
+                    return this.filter.kolom || this.filter.komponen || this.filter.search || this.showLowStock;
+                },
+                
+                // Methods
+                async init() {
+                    await Promise.all([
+                        this.loadItems(),
+                        this.loadStats(),
+                        this.loadRecentActivities(),
+                        this.loadUniqueValues()
+                    ]);
+                    
+                    // Auto-refresh setiap 60 detik
+                    setInterval(() => {
+                        this.loadItems();
+                        this.loadStats();
+                    }, 60000);
+                },
+                
+                async loadItems() {
+                    this.loading = true;
+                    this.error = '';
+                    
+                    try {
+                        let url = '/api/items';
+                        const params = [];
+                        
+                        if (this.filter.kolom) params.push(`kolom=${encodeURIComponent(this.filter.kolom)}`);
+                        if (this.filter.komponen) params.push(`komponen=${encodeURIComponent(this.filter.komponen)}`);
+                        if (this.filter.search) params.push(`search=${encodeURIComponent(this.filter.search)}`);
+                        
+                        if (params.length > 0) url += '?' + params.join('&');
+                        
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error('Gagal memuat data dari server');
+                        
+                        const data = await response.json();
+                        this.items = Array.isArray(data) ? data : data.items || [];
+                    } catch (err) {
+                        this.error = err.message;
+                        this.showNotificationMessage('Gagal memuat data: ' + err.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                async loadStats() {
+                    try {
+                        const response = await fetch('/api/dashboard/stats');
+                        if (response.ok) {
+                            this.stats = await response.json();
+                        }
+                    } catch (err) {
+                        console.error('Failed to load stats:', err);
+                    }
+                },
+                
+                async loadRecentActivities() {
+                    try {
+                        const response = await fetch('/api/qty-history?limit=5');
+                        if (response.ok) {
+                            this.recentActivities = await response.json();
+                        }
+                    } catch (err) {
+                        console.error('Failed to load recent activities:', err);
+                    }
+                },
+                
+                async loadUniqueValues() {
+                    try {
+                        const response = await fetch('/api/unique-values');
+                        if (response.ok) {
+                            // Values are already loaded from items
+                        }
+                    } catch (err) {
+                        console.error('Failed to load unique values:', err);
+                    }
+                },
+                
+                async saveItem() {
+                    // Validasi
+                    if (!this.currentItem.article.trim() || !this.currentItem.komponen.trim()) {
+                        this.showNotificationMessage('Article dan Komponen harus diisi', 'error');
+                        return;
+                    }
+                    
+                    if (this.currentItem.qty < 0) {
+                        this.showNotificationMessage('Quantity tidak boleh negatif', 'error');
+                        return;
+                    }
+                    
+                    this.savingItem = true;
+                    
+                    try {
+                        let url = '/api/items';
+                        let method = 'POST';
+                        
+                        if (this.currentItem.id) {
+                            url = `/api/items/${this.currentItem.id}`;
+                            method = 'PUT';
+                        }
+                        
+                        const response = await fetch(url, {
+                            method,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.currentItem)
+                        });
+                        
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Gagal menyimpan data');
+                        }
+                        
+                        await this.loadItems();
+                        this.resetForm();
+                        
+                        this.showNotificationMessage(
+                            this.currentItem.id ? 'Item berhasil diperbarui' : 'Item baru berhasil ditambahkan',
+                            'success'
+                        );
+                        
+                    } catch (err) {
+                        this.showNotificationMessage('Gagal menyimpan data: ' + err.message, 'error');
+                    } finally {
+                        this.savingItem = false;
+                    }
+                },
+                
+                editItem(item) {
+                    this.currentItem = { ...item };
+                    // Scroll to form
+                    document.querySelector('form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    
+                    this.showNotificationMessage('Mengedit item: ' + item.article, 'info');
+                },
+                
+                duplicateItem(item) {
+                    this.currentItem = {
+                        id: null,
+                        article: item.article + ' (Copy)',
+                        komponen: item.komponen,
+                        noPo: item.noPo,
+                        order: item.order,
+                        qty: item.qty,
+                        minStock: item.minStock,
+                        kolom: item.kolom
+                    };
+                    
+                    document.querySelector('form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    this.showNotificationMessage('Item siap untuk diduplikat', 'info');
+                },
+                
+                async deleteItem(id) {
+                    const item = this.items.find(item => item.id == id);
+                    if (!item) return;
+                    
+                    if (!confirm(`Apakah Anda yakin ingin menghapus item "${item.article}"?`)) return;
+                    
+                    try {
+                        const response = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+                        
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Gagal menghapus data');
+                        }
+                        
+                        await this.loadItems();
+                        this.showNotificationMessage('Item berhasil dihapus', 'success');
+                        
+                    } catch (err) {
+                        this.showNotificationMessage('Gagal menghapus data: ' + err.message, 'error');
+                    }
+                },
+                
+                async updateQtyAdjustment() {
+                    if (!this.quickUpdateId) {
+                        this.showNotificationMessage('ID Item harus diisi', 'error');
+                        return;
+                    }
+                    
+                    // Cek apakah menggunakan mode adjustment atau absolute
+                    const useAdjustment = this.quickUpdateAdjustment !== 0 && this.quickUpdateAdjustment !== '';
+                    const useAbsolute = this.quickUpdateAbsolute !== '' && this.quickUpdateAbsolute !== null;
+                    
+                    if (!useAdjustment && !useAbsolute) {
+                        this.showNotificationMessage('Masukkan adjustment atau nilai absolut', 'error');
+                        return;
+                    }
+                    
+                    this.updatingQty = true;
+                    
+                    try {
+                        const payload = {
+                            changeType: 'adjustment',
+                            notes: 'Quick update via adjustment',
+                            updatedBy: 'User'
+                        };
+                        
+                        if (useAdjustment) {
+                            payload.adjustment = parseInt(this.quickUpdateAdjustment);
+                            payload.notes = `Quick adjustment: ${payload.adjustment > 0 ? '+' : ''}${payload.adjustment}`;
+                            payload.changeType = payload.adjustment > 0 ? 'inbound' : 'outbound';
+                        } else if (useAbsolute) {
+                            payload.newQty = parseInt(this.quickUpdateAbsolute);
+                            payload.notes = `Quick set to: ${payload.newQty}`;
+                            payload.changeType = 'manual';
+                        }
+                        
+                        const response = await fetch(`/api/items/${this.quickUpdateId}/update-qty`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Gagal mengupdate qty');
+                        }
+                        
+                        const result = await response.json();
+                        
+                        // Update local data
+                        await this.loadItems();
+                        
+                        // Reset form
+                        this.quickUpdateId = '';
+                        this.quickUpdateAdjustment = 0;
+                        this.quickUpdateAbsolute = '';
+                        
+                        this.showNotificationMessage(
+                            useAdjustment ? 
+                                `Qty berhasil diadjust ${payload.adjustment > 0 ? '+' : ''}${payload.adjustment}` :
+                                `Qty berhasil diset ke ${payload.newQty}`,
+                            'success'
+                        );
+                        
+                    } catch (err) {
+                        this.showNotificationMessage('Gagal memperbarui Qty: ' + err.message, 'error');
+                    } finally {
+                        this.updatingQty = false;
+                    }
+                },
+                
+                // Methods untuk detail update qty
+                openQtyDetailModal(item) {
+                    this.selectedItemForQtyUpdate = { ...item };
+                    this.qtyUpdateDetail = {
+                        method: 'adjust',
+                        newQty: item.qty,
+                        adjustment: 0,
+                        changeType: 'adjustment',
+                        notes: '',
+                        updatedBy: ''
+                    };
+                    this.showQtyDetailModal = true;
+                },
+                
+                async submitQtyDetailUpdate() {
+                    if (!this.selectedItemForQtyUpdate) return;
+                    
+                    this.qtyUpdateLoading = true;
+                    
+                    try {
+                        const payload = {
+                            changeType: this.qtyUpdateDetail.changeType || 'adjustment',
+                            notes: this.qtyUpdateDetail.notes || 'Qty updated',
+                            updatedBy: this.qtyUpdateDetail.updatedBy || 'User'
+                        };
+                        
+                        if (this.qtyUpdateDetail.method === 'adjust') {
+                            const adjustment = parseInt(this.qtyUpdateDetail.adjustment || 0);
+                            if (adjustment === 0) {
+                                throw new Error('Adjustment tidak boleh 0');
+                            }
+                            payload.adjustment = adjustment;
+                            // Auto-determine change type based on adjustment
+                            if (!payload.changeType) {
+                                payload.changeType = adjustment > 0 ? 'inbound' : 'outbound';
+                            }
+                        } else {
+                            const newQty = parseInt(this.qtyUpdateDetail.newQty || 0);
+                            if (newQty < 0) {
+                                throw new Error('Qty tidak boleh negatif');
+                            }
+                            payload.newQty = newQty;
+                        }
+                        
+                        const response = await fetch(`/api/items/${this.selectedItemForQtyUpdate.id}/update-qty`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Gagal mengupdate qty');
+                        }
+                        
+                        const result = await response.json();
+                        
+                        // Update item di local state
+                        const index = this.items.findIndex(item => item.id === this.selectedItemForQtyUpdate.id);
+                        if (index !== -1) {
+                            this.items[index].qty = result.item.qty;
+                        }
+                        
+                        // Refresh recent activities
+                        await this.loadRecentActivities();
+                        
+                        // Reset dan tutup modal
+                        this.showQtyDetailModal = false;
+                        this.qtyUpdateLoading = false;
+                        
+                        this.showNotificationMessage(result.message, 'success');
+                        
+                    } catch (err) {
+                        this.qtyUpdateLoading = false;
+                        this.showNotificationMessage('Gagal mengupdate qty: ' + err.message, 'error');
+                    }
+                },
+                
+                async openQtyHistoryModal(item) {
+                    this.selectedItemForHistory = { ...item };
+                    this.showQtyHistoryModal = true;
+                    await this.loadQtyHistory();
+                },
+                
+                async loadQtyHistory() {
+                    if (!this.selectedItemForHistory) return;
+                    
+                    this.qtyHistoryLoading = true;
+                    
+                    try {
+                        let url = `/api/items/${this.selectedItemForHistory.id}/qty-history`;
+                        if (this.historyFilter.limit) {
+                            url += `?limit=${this.historyFilter.limit}`;
+                        }
+                        
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error('Gagal memuat riwayat');
+                        
+                        let history = await response.json();
+                        
+                        // Filter by changeType jika dipilih
+                        if (this.historyFilter.changeType) {
+                            history = history.filter(h => h.changeType === this.historyFilter.changeType);
+                        }
+                        
+                        // Filter by date jika dipilih
+                        if (this.historyFilter.startDate) {
+                            const startDate = new Date(this.historyFilter.startDate);
+                            history = history.filter(h => new Date(h.createdAt) >= startDate);
+                        }
+                        
+                        this.qtyHistory = history;
+                    } catch (err) {
+                        this.showNotificationMessage('Gagal memuat riwayat: ' + err.message, 'error');
+                    } finally {
+                        this.qtyHistoryLoading = false;
+                    }
+                },
+                
+                getHistoryCountByType(type) {
+                    return this.qtyHistory.filter(h => h.changeType === type).length;
+                },
+                
+                async exportQtyHistory() {
+                    if (!this.selectedItemForHistory || this.qtyHistory.length === 0) {
+                        this.showNotificationMessage('Tidak ada data riwayat untuk diexport', 'error');
+                        return;
+                    }
+                    
+                    const headers = ['Tanggal', 'Article', 'Qty Lama', 'Qty Baru', 'Perubahan', 'Tipe', 'Catatan', 'Oleh'];
+                    const csvData = [
+                        headers.join(','),
+                        ...this.qtyHistory.map(history => [
+                            this.formatDateTime(history.createdAt),
+                            `"${history.article}"`,
+                            history.oldQty,
+                            history.newQty,
+                            history.changeAmount,
+                            history.changeType,
+                            `"${history.notes || ''}"`,
+                            `"${history.updatedBy || ''}"`
+                        ].join(','))
+                    ].join('\n');
+                    
+                    this.downloadCSV(csvData, `qty-history-${this.selectedItemForHistory.article}-${new Date().toISOString().split('T')[0]}.csv`);
+                    this.showNotificationMessage('Riwayat berhasil diexport', 'success');
+                },
+                
+                // Methods untuk bulk update
+                openBulkUpdateModal() {
+                    this.selectedItemsForBulk = [];
+                    this.bulkUpdateData = { adjustment: 0, notes: '' };
+                    this.showBulkUpdateModal = true;
+                },
+                
+                async submitBulkUpdate() {
+                    if (this.selectedItemsForBulk.length === 0) {
+                        this.showNotificationMessage('Pilih minimal satu item', 'error');
+                        return;
+                    }
+                    
+                    if (!this.bulkUpdateData.adjustment) {
+                        this.showNotificationMessage('Masukkan nilai adjustment', 'error');
+                        return;
+                    }
+                    
+                    this.bulkUpdateLoading = true;
+                    
+                    try {
+                        const items = this.selectedItemsForBulk.map(id => ({
+                            id,
+                            adjustment: parseInt(this.bulkUpdateData.adjustment)
+                        }));
+                        
+                        const payload = {
+                            items,
+                            changeType: 'adjustment',
+                            notes: this.bulkUpdateData.notes || `Bulk adjustment by ${this.bulkUpdateData.adjustment}`,
+                            updatedBy: 'System'
+                        };
+                        
+                        const response = await fetch('/api/items/bulk/update-qty', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Gagal melakukan bulk update');
+                        }
+                        
+                        const result = await response.json();
+                        
+                        // Refresh data
+                        await this.loadItems();
+                        await this.loadRecentActivities();
+                        
+                        this.showBulkUpdateModal = false;
+                        this.showNotificationMessage(
+                            `Berhasil mengupdate ${result.updatedCount} items`,
+                            'success'
+                        );
+                        
+                    } catch (err) {
+                        this.showNotificationMessage('Gagal melakukan bulk update: ' + err.message, 'error');
+                    } finally {
+                        this.bulkUpdateLoading = false;
+                    }
+                },
+                
+                // Methods untuk quick adjust tombol di tabel
+                addQtyQuick(itemId, amount = 1) {
+                    this.quickUpdateId = itemId;
+                    this.quickUpdateAdjustment = amount;
+                    this.quickUpdateAbsolute = '';
+                    this.updateQtyAdjustment();
+                },
+                
+                subtractQtyQuick(itemId, amount = 1) {
+                    this.quickUpdateId = itemId;
+                    this.quickUpdateAdjustment = -amount;
+                    this.quickUpdateAbsolute = '';
+                    this.updateQtyAdjustment();
+                },
+                
+                // Utility methods
+                resetForm() {
+                    this.currentItem = {
+                        id: null,
+                        article: '',
+                        komponen: '',
+                        noPo: '',
+                        order: 0,
+                        qty: 0,
+                        minStock: 10,
+                        kolom: ''
+                    };
+                },
+                
+                applyFilter() {
+                    this.currentPage = 1;
+                    this.loadItems();
+                },
+                
+                clearFilter() {
+                    this.filter = {
+                        kolom: '',
+                        komponen: '',
+                        search: ''
+                    };
+                    this.showLowStock = false;
+                    this.tableSearch = '';
+                    this.currentPage = 1;
+                    this.loadItems();
+                },
+                
+                getFilterDescription() {
+                    const filters = [];
+                    if (this.filter.kolom) filters.push(`Lokasi: ${this.filter.kolom}`);
+                    if (this.filter.komponen) filters.push(`Komponen: ${this.filter.komponen}`);
+                    if (this.filter.search) filters.push(`Pencarian: ${this.filter.search}`);
+                    if (this.showLowStock) filters.push('Stok Rendah');
+                    return filters.join(', ') || 'Semua item';
+                },
+                
+                sortTable(field) {
+                    if (this.sortField === field) {
+                        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.sortField = field;
+                        this.sortDirection = 'asc';
+                    }
+                },
+                
+                previousPage() {
+                    if (this.currentPage > 1) this.currentPage--;
+                },
+                
+                nextPage() {
+                    if (this.currentPage * this.itemsPerPage < this.filteredItems.length) this.currentPage++;
+                },
+                
+                getQtyBadgeClass(qty, minStock) {
+                    if (qty <= minStock) return 'badge-red';
+                    if (qty <= minStock * 2) return 'badge-yellow';
+                    return 'badge-green';
+                },
+                
+                getStatusBadgeClass(qty, minStock) {
+                    if (qty <= minStock) return 'badge-red';
+                    if (qty <= minStock * 2) return 'badge-yellow';
+                    return 'badge-green';
+                },
+                
+                getStatusIcon(qty, minStock) {
+                    if (qty <= minStock) return 'fas fa-exclamation-circle mr-1';
+                    if (qty <= minStock * 2) return 'fas fa-exclamation-triangle mr-1';
+                    return 'fas fa-check-circle mr-1';
+                },
+                
+                getStatusText(qty, minStock) {
+                    if (qty <= minStock) return 'Stok Rendah';
+                    if (qty <= minStock * 2) return 'Stok Sedang';
+                    return 'Stok Aman';
+                },
+                
+                async exportToCSV() {
+                    if (this.items.length === 0) {
+                        this.showNotificationMessage('Tidak ada data untuk diexport', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/export/csv');
+                        if (!response.ok) throw new Error('Gagal mengexport data');
+                        
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `warehouse-export-${new Date().toISOString().split('T')[0]}.csv`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        this.showNotificationMessage('Data berhasil diexport ke CSV', 'success');
+                    } catch (err) {
+                        this.showNotificationMessage('Gagal mengexport data: ' + err.message, 'error');
+                    }
+                },
+                
+                downloadCSV(csvData, filename) {
+                    const blob = new Blob([csvData], { type: 'text/csv' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                },
+                
+                openPrintView() {
+                    const printWindow = window.open('', '_blank');
+                    printWindow.document.write(`
+                        <html>
+                            <head>
+                                <title>Warehouse Report - ${new Date().toLocaleDateString()}</title>
+                                <style>
+                                    body { font-family: Arial, sans-serif; margin: 20px; }
+                                    h1 { color: #333; }
+                                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                                    th { background-color: #f2f2f2; }
+                                    .low-stock { background-color: #ffe6e6; }
+                                    @media print {
+                                        .no-print { display: none; }
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <h1>Warehouse Report</h1>
+                                <p>Generated: ${new Date().toLocaleString()}</p>
+                                <p>Total Items: ${this.items.length}</p>
+                                <p>Low Stock Items: ${this.lowStockCount}</p>
+                                
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Article</th>
+                                            <th>Komponen</th>
+                                            <th>Qty</th>
+                                            <th>Min Stock</th>
+                                            <th>Lokasi</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${this.items.map(item => `
+                                            <tr class="${item.qty <= item.minStock ? 'low-stock' : ''}">
+                                                <td>${item.id}</td>
+                                                <td>${item.article}</td>
+                                                <td>${item.komponen}</td>
+                                                <td>${item.qty}</td>
+                                                <td>${item.minStock}</td>
+                                                <td>${item.kolom || '-'}</td>
+                                                <td>${item.qty <= item.minStock ? 'LOW STOCK' : 'OK'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                                
+                                <div class="no-print" style="margin-top: 20px;">
+                                    <button onclick="window.print()">Print Report</button>
+                                    <button onclick="window.close()">Close</button>
+                                </div>
+                            </body>
+                        </html>
+                    `);
+                    printWindow.document.close();
+                },
+                
+                openSettingsModal() {
+                    // Placeholder untuk settings modal
+                    this.showNotificationMessage('Settings feature coming soon', 'info');
+                },
+                
+                formatNumber(num) {
+                    return new Intl.NumberFormat('id-ID').format(num);
+                },
+                
+                formatDateTime(dateString) {
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('id-ID') + ' ' + date.toLocaleTimeString('id-ID');
+                },
+                
+                formatTimeAgo(dateString) {
+                    const date = new Date(dateString);
+                    const now = new Date();
+                    const diffMs = now - date;
+                    const diffMins = Math.floor(diffMs / 60000);
+                    
+                    if (diffMins < 1) return 'baru saja';
+                    if (diffMins < 60) return `${diffMins} menit lalu`;
+                    if (diffMins < 1440) return `${Math.floor(diffMins / 60)} jam lalu`;
+                    return `${Math.floor(diffMins / 1440)} hari lalu`;
+                },
+                
+                showNotificationMessage(message, type = 'success') {
+                    this.notificationMessage = message;
+                    this.notificationType = type;
+                    this.showNotification = true;
+                    
+                    setTimeout(() => {
+                        this.showNotification = false;
+                    }, 3000);
+                }
+            };
+        }
+    </script>
+</body>
+</html>
