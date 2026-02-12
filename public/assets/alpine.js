@@ -24,7 +24,7 @@ function warehouseApp() {
         showBulkUpdateModal: false,
         selectedItemForQtyUpdate: null,
         selectedItemForHistory: null,
-        qtyUpdateDetail: { method: 'adjust', newQty: 0, adjustment: 0, changeType: 'adjustment', notes: '', updatedBy: '' },
+        qtyUpdateDetail: { method: 'adjust', newQty: 0, adjustment: 0, changeType: 'adjustment', notes: '' },
         bulkUpdateData: { adjustment: 0, notes: '' },
         selectedItemsForBulk: [],
         qtyHistory: [],
@@ -75,6 +75,13 @@ function warehouseApp() {
         lastScanTime: null,
         todayScanCount: 0,
         showScanLogs: false,
+
+        // ========== USER MANAGEMENT (ADMIN ONLY) ==========
+        showUserModal: false,
+        users: [],
+        newUser: { username: '', password: '', role: 'operator' },
+        userLoading: false,
+        userError: '',
 
         // ========== COMPUTED ==========
         get isAuthenticated() {
@@ -218,6 +225,78 @@ function warehouseApp() {
                 throw new Error('Unauthorized');
             }
             return res;
+        },
+
+        // ========== USER MANAGEMENT ==========
+        async loadUsers() {
+            if (!this.isAdmin) return;
+            this.userLoading = true;
+            try {
+                const res = await this.fetchWithAuth('/api/users');
+                this.users = await res.json();
+            } catch (err) {
+                if (err.message !== 'Unauthorized')
+                    this.showNotificationMessage('Gagal memuat users: ' + err.message, 'error');
+            } finally {
+                this.userLoading = false;
+            }
+        },
+
+        async addUser() {
+            if (!this.isAdmin) return;
+            if (!this.newUser.username.trim() || !this.newUser.password.trim()) {
+                this.showNotificationMessage('Username dan password harus diisi', 'error');
+                return;
+            }
+            this.userLoading = true;
+            try {
+                const res = await this.fetchWithAuth('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.newUser)
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || 'Gagal menambah user');
+                }
+                const user = await res.json();
+                this.users.push(user);
+                this.newUser = { username: '', password: '', role: 'operator' };
+                this.showNotificationMessage(`User ${user.username} berhasil ditambahkan`, 'success');
+            } catch (err) {
+                if (err.message !== 'Unauthorized')
+                    this.showNotificationMessage(err.message, 'error');
+            } finally {
+                this.userLoading = false;
+            }
+        },
+
+        async deleteUser(userId, username) {
+            if (!this.isAdmin) return;
+            if (!confirm(`Hapus user "${username}"?`)) return;
+            try {
+                const res = await this.fetchWithAuth(`/api/users/${userId}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Gagal menghapus user');
+                this.users = this.users.filter(u => u.id !== userId);
+                this.showNotificationMessage('User berhasil dihapus', 'success');
+            } catch (err) {
+                if (err.message !== 'Unauthorized')
+                    this.showNotificationMessage(err.message, 'error');
+            }
+        },
+
+        openUserModal() {
+            if (this.isAdmin) {
+                this.showUserModal = true;
+                this.userError = '';
+                this.loadUsers();
+            }
+        },
+
+        closeUserModal() {
+            this.showUserModal = false;
+            this.users = [];
+            this.newUser = { username: '', password: '', role: 'operator' };
         },
 
         // ========== CRUD & DATA LOADING ==========
@@ -382,7 +461,11 @@ function warehouseApp() {
                 const response = await this.fetchWithAuth('/api/qr-scan', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ qrData: qrData.trim(), type: this.qrType, scannedBy: 'Web Scanner' })
+                    body: JSON.stringify({ 
+                        qrData: qrData.trim(), 
+                        type: this.qrType, 
+                        scannedBy: this.user.username   // AUTO dari session
+                    })
                 });
                 const result = await response.json();
                 this.lastScanTime = new Date().toISOString();
@@ -460,7 +543,7 @@ function warehouseApp() {
         // ========== DETAIL UPDATE QTY ==========
         openQtyDetailModal(item) {
             this.selectedItemForQtyUpdate = { ...item };
-            this.qtyUpdateDetail = { method: 'adjust', newQty: item.qty, adjustment: 0, changeType: 'adjustment', notes: '', updatedBy: '' };
+            this.qtyUpdateDetail = { method: 'adjust', newQty: item.qty, adjustment: 0, changeType: 'adjustment', notes: '' };
             this.showQtyDetailModal = true;
         },
 
@@ -471,7 +554,7 @@ function warehouseApp() {
                 const payload = {
                     changeType: this.qtyUpdateDetail.changeType || 'adjustment',
                     notes: this.qtyUpdateDetail.notes || 'Qty updated',
-                    updatedBy: this.qtyUpdateDetail.updatedBy || 'User'
+                    updatedBy: this.user.username   // AUTO dari session
                 };
                 if (this.qtyUpdateDetail.method === 'adjust') {
                     const adj = parseInt(this.qtyUpdateDetail.adjustment || 0);
@@ -643,7 +726,7 @@ function warehouseApp() {
                                 </div>
                                 ` : ''}
                                 <p style="font-size: 0.7em; color: #666; margin-top: 0.1in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
-                                    ${new Date().toLocaleDateString('id-ID')} | WMS v5.0
+                                    ${new Date().toLocaleDateString('id-ID')} | WMS v5.1
                                 </p>
                             </div>
                         </div>
@@ -786,7 +869,7 @@ function warehouseApp() {
                                         </div>
                                         ` : ''}
                                         <p style="color: #666; margin-top: 0.05in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
-                                            WMS v5.0 | ${idx + 1}/${result.count}
+                                            WMS v5.1 | ${idx + 1}/${result.count}
                                         </p>
                                     </div>
                                 </div>
@@ -830,7 +913,7 @@ function warehouseApp() {
                             </div>
                             <div class="label-container">${labelsHTML}</div>
                             <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
-                                <p>Warehouse Management System v5.0 - Label Massal</p>
+                                <p>Warehouse Management System v5.1 - Label Massal</p>
                                 <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
                             </div>
                             <script>

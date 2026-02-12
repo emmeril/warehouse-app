@@ -1,5 +1,5 @@
 // Warehouse Management App (Express.js + SQLite + Sequelize)
-// Versi 5.0 – Role Admin/Operator + QR Code Scanner
+// Versi 5.1 – Role Admin/Operator + Manajemen User + Auto-fill UpdatedBy
 
 const express = require('express');
 const session = require('express-session');
@@ -147,6 +147,62 @@ app.get('/api/me', (req, res) => {
   }
 });
 
+// ==================== USER MANAGEMENT (ADMIN ONLY) ====================
+// GET all users
+app.get('/api/users', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const users = await User.findAll({
+      attributes: ['id', 'username', 'role', 'createdAt', 'updatedAt']
+    });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create new user
+app.post('/api/users', isAuthenticated, isAdmin, async (req, res) => {
+  const { username, password, role } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password required' });
+  }
+  try {
+    const existing = await User.findOne({ where: { username } });
+    if (existing) return res.status(400).json({ error: 'Username already exists' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await User.create({
+      username,
+      password: hashedPassword,
+      role: role || 'operator'
+    });
+    res.status(201).json({
+      id: newUser.id,
+      username: newUser.username,
+      role: newUser.role,
+      createdAt: newUser.createdAt
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE user (admin only, cannot delete self)
+app.delete('/api/users/:id', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (userId === req.session.userId) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+    const user = await User.findByPk(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    await user.destroy();
+    res.json({ success: true, message: 'User deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==================== API ROUTES (semua harus login) ====================
 
 // 1. CREATE ITEM (hanya admin)
@@ -161,7 +217,8 @@ app.post('/api/items', isAuthenticated, isAdmin, async (req, res) => {
         newQty: req.body.qty,
         changeAmount: req.body.qty,
         changeType: 'inbound',
-        notes: 'Initial stock creation'
+        notes: 'Initial stock creation',
+        updatedBy: req.session.username
       });
     }
     res.json(item);
@@ -238,7 +295,7 @@ app.put('/api/items/:id', isAuthenticated, isAdmin, async (req, res) => {
         changeAmount,
         changeType,
         notes: req.body.changeNotes || `Qty updated from ${oldQty} to ${newQty}`,
-        updatedBy: req.body.updatedBy || 'System'
+        updatedBy: req.session.username
       }, { transaction });
     }
     await transaction.commit();
@@ -262,7 +319,7 @@ app.delete('/api/items/:id', isAuthenticated, isAdmin, async (req, res) => {
       changeAmount: -item.qty,
       changeType: 'outbound',
       notes: 'Item deleted from system',
-      updatedBy: 'System'
+      updatedBy: req.session.username
     });
     await item.destroy();
     res.json({ status: 'deleted', message: 'Item deleted successfully' });
@@ -280,7 +337,7 @@ app.post('/api/items/:id/update-qty', isAuthenticated, async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ message: 'Item not found' });
     }
-    const { newQty, changeType, notes, updatedBy, adjustment } = req.body;
+    const { newQty, changeType, notes, adjustment } = req.body;
     if (newQty === undefined && adjustment === undefined) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Either newQty or adjustment is required' });
@@ -300,7 +357,7 @@ app.post('/api/items/:id/update-qty', isAuthenticated, async (req, res) => {
       changeAmount: finalQty - oldQty,
       changeType: changeType || (adjustment !== undefined ? 'adjustment' : 'manual'),
       notes: notes || (adjustment !== undefined ? `Adjusted by ${adjustment > 0 ? '+' : ''}${adjustment}` : `Updated from ${oldQty} to ${finalQty}`),
-      updatedBy: updatedBy || 'System'
+      updatedBy: req.session.username
     }, { transaction });
     await transaction.commit();
     res.json({ success: true, item, history, message: `Qty updated from ${oldQty} to ${finalQty}` });
@@ -397,7 +454,7 @@ app.get('/api/unique-values', isAuthenticated, async (req, res) => {
 app.post('/api/items/bulk/update-qty', isAuthenticated, isAdmin, async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const { items, changeType, notes, updatedBy } = req.body;
+    const { items, changeType, notes } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Items array is required' });
@@ -419,7 +476,7 @@ app.post('/api/items/bulk/update-qty', isAuthenticated, isAdmin, async (req, res
         changeAmount: finalQty - oldQty,
         changeType: changeType || 'adjustment',
         notes: notes || `Bulk update: ${adjustment ? `Adjusted by ${adjustment}` : `Set to ${newQty}`}`,
-        updatedBy: updatedBy || 'System'
+        updatedBy: req.session.username
       }, { transaction });
       results.push({ id: item.id, article: item.article, oldQty, newQty: finalQty, success: true });
     }
@@ -579,7 +636,15 @@ app.post('/api/qr-scan', isAuthenticated, async (req, res) => {
     }
     const items = await Item.findAll({ where, order: [['updatedAt', 'DESC']], limit: 10 });
     if (items.length > 0) {
-      await ScanLog.create({ itemId: items[0].id, article: items[0].article, scanType: 'qr', scanData: qrData, action: 'search', result: `Found ${items.length} items`, scannedBy: req.body.scannedBy || 'System' });
+      await ScanLog.create({
+        itemId: items[0].id,
+        article: items[0].article,
+        scanType: 'qr',
+        scanData: qrData,
+        action: 'search',
+        result: `Found ${items.length} items`,
+        scannedBy: req.session.username
+      });
     }
     if (items.length === 0) return res.status(404).json({ success: false, message: 'Item tidak ditemukan', qrData, type });
     res.json({ success: true, count: items.length, items, qrData });
@@ -592,7 +657,7 @@ app.post('/api/qr-scan', isAuthenticated, async (req, res) => {
 app.post('/api/qr-quick-update', isAuthenticated, async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const { qrData, adjustment, newQty, changeType, notes, updatedBy } = req.body;
+    const { qrData, adjustment, newQty, changeType, notes } = req.body;
     if (!qrData) { await transaction.rollback(); return res.status(400).json({ message: 'QR data is required' }); }
     if (adjustment === undefined && newQty === undefined) { await transaction.rollback(); return res.status(400).json({ message: 'Either adjustment or newQty is required' }); }
     let itemId; let item;
@@ -620,9 +685,17 @@ app.post('/api/qr-quick-update', isAuthenticated, async (req, res) => {
       changeAmount: finalQty - oldQty,
       changeType: changeType || (adjustment > 0 ? 'inbound' : adjustment < 0 ? 'outbound' : 'qr_scan'),
       notes: notes || `QR Scan Update: ${newQty !== undefined ? `Set to ${newQty}` : `Adjusted by ${adjustment > 0 ? '+' : ''}${adjustment}`}`,
-      updatedBy: updatedBy || 'QR Scanner'
+      updatedBy: req.session.username
     }, { transaction });
-    await ScanLog.create({ itemId: item.id, article: item.article, scanType: 'qr', scanData: qrData, action: 'update', result: `Qty updated: ${oldQty} → ${finalQty}`, scannedBy: updatedBy || 'QR Scanner' }, { transaction });
+    await ScanLog.create({
+      itemId: item.id,
+      article: item.article,
+      scanType: 'qr',
+      scanData: qrData,
+      action: 'update',
+      result: `Qty updated: ${oldQty} → ${finalQty}`,
+      scannedBy: req.session.username
+    }, { transaction });
     await transaction.commit();
     res.json({ success: true, item, history, message: `Qty updated via QR: ${oldQty} → ${finalQty} (${finalQty - oldQty > 0 ? '+' : ''}${finalQty - oldQty})` });
   } catch (err) {
@@ -695,7 +768,15 @@ app.post('/api/inventory/count', isAuthenticated, async (req, res) => {
       const item = await Item.findByPk(itemId);
       if (!item) { results.push({ qrData, success: false, message: 'Item not found' }); continue; }
       if (item.qty !== countedQty) discrepancies.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty, difference: countedQty - item.qty });
-      await ScanLog.create({ itemId: item.id, article: item.article, scanType: 'qr', scanData: qrData, action: 'check_in', result: `Counted: ${countedQty}, System: ${item.qty}`, scannedBy: req.body.scannedBy || 'Inventory Counter' }, { transaction });
+      await ScanLog.create({
+        itemId: item.id,
+        article: item.article,
+        scanType: 'qr',
+        scanData: qrData,
+        action: 'check_in',
+        result: `Counted: ${countedQty}, System: ${item.qty}`,
+        scannedBy: req.session.username
+      }, { transaction });
       results.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty, success: true });
     }
     await transaction.commit();
@@ -744,9 +825,10 @@ function determineChangeType(changeAmount, specifiedType) {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`========================================`);
-  console.log(`Warehouse Management System v5.0`);
+  console.log(`Warehouse Management System v5.1`);
   console.log(`QR Code otomatis di label: ENABLED`);
   console.log(`Role-based access control: ENABLED`);
+  console.log(`Manajemen User: ENABLED (admin only)`);
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Database: ${sequelize.config.storage}`);
   console.log(`Default users: admin/admin , operator/operator`);
