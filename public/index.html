@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warehouse Management System v4.1</title>
+    <title>Warehouse Management System v5.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -11,211 +11,91 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
-        
-        /* Custom animations */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        @keyframes slideIn {
-            from { transform: translateX(-20px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        
-        @keyframes pulse-ring {
-            0% { transform: scale(0.8); opacity: 0.8; }
-            100% { transform: scale(1.2); opacity: 0; }
-        }
-        
+        [x-cloak] { display: none !important; }
         .fade-in { animation: fadeIn 0.3s ease-out; }
-        .slide-in { animation: slideIn 0.3s ease-out; }
-        .pulse-ring { animation: pulse-ring 1.5s infinite; }
-        
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
-        
-        /* Modal animations */
-        .modal-enter { opacity: 0; transform: scale(0.95); }
-        .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 200ms, transform 200ms; }
-        .modal-exit { opacity: 1; transform: scale(1); }
-        .modal-exit-active { opacity: 0; transform: scale(0.95); transition: opacity 200ms, transform 200ms; }
-        
-        /* Table row hover */
-        .table-row-hover:hover { background-color: #f8fafc; }
-        
-        /* Custom utilities */
-        .text-shadow { text-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        
-        /* Loading spinner */
-        .spinner {
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        
-        /* Badge colors */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .qr-scanner-frame::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 4px solid rgba(59, 130, 246, 0.5); border-radius: 12px; animation: pulse-ring 1.5s infinite; pointer-events: none; }
+        @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 0.8; } 100% { transform: scale(1.2); opacity: 0; } }
         .badge-red { background-color: #fee2e2; color: #dc2626; }
         .badge-green { background-color: #d1fae5; color: #059669; }
-        .badge-blue { background-color: #dbeafe; color: #2563eb; }
         .badge-yellow { background-color: #fef3c7; color: #d97706; }
+        .badge-blue { background-color: #dbeafe; color: #2563eb; }
         .badge-purple { background-color: #ede9fe; color: #7c3aed; }
-        .badge-gray { background-color: #f3f4f6; color: #4b5563; }
         .badge-orange { background-color: #ffedd5; color: #f97316; }
-        
-        /* Print styles */
-        @media print {
-            .no-print { display: none !important; }
-            .print-only { display: block !important; }
-        }
-        
         /* Label styles */
-        .label-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(3in, 1fr));
-            gap: 5px;
-        }
-        
-        .label-preview {
-            border: 2px dashed #cbd5e1;
-            background: linear-gradient(45deg, #f8fafc 25%, #ffffff 25%, #ffffff 50%, #f8fafc 50%, #f8fafc 75%, #ffffff 75%, #ffffff);
-            background-size: 20px 20px;
-        }
-        
-        /* QR Scanner styles */
-        .qr-scanner-frame {
-            position: relative;
-            overflow: hidden;
-            border-radius: 12px;
-        }
-        
-        .qr-scanner-frame::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            border: 4px solid rgba(59, 130, 246, 0.5);
-            border-radius: 12px;
-            animation: pulse-ring 1.5s infinite;
-            pointer-events: none;
-        }
-        
-        .scan-line {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, transparent, #3b82f6, transparent);
-            animation: scan 2s linear infinite;
-        }
-        
-        @keyframes scan {
-            0% { top: 0; }
-            100% { top: 100%; }
-        }
-        
-        /* Custom file upload */
-        .file-upload:hover .file-upload-label {
-            background-color: #f3f4f6;
-        }
-        
-        [x-cloak] { display: none !important; }
-        
-        /* QR Code in label */
-        .qr-label {
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .qr-label::after {
-            content: 'QR';
-            position: absolute;
-            bottom: 5px;
-            right: 5px;
-            font-size: 8px;
-            color: #666;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 2px 4px;
-            border-radius: 3px;
-        }
-        
-        /* Bulk label grid */
-        .bulk-label-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 5px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        
-        .bulk-label-preview {
-            border: 1px solid #e5e7eb;
-            border-radius: 4px;
-            padding: 5px;
-            background: white;
-            font-size: 10px;
-            text-align: center;
-        }
-        
-        .bulk-label-preview .qr-mini {
-            width: 40px;
-            height: 40px;
-            margin: 0 auto;
-            background: #f3f4f6;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+        .label-preview { border: 2px dashed #cbd5e1; background: linear-gradient(45deg, #f8fafc 25%, #ffffff 25%, #ffffff 50%, #f8fafc 50%, #f8fafc 75%, #ffffff 75%, #ffffff); background-size: 20px 20px; }
+        .qr-label { position: relative; overflow: hidden; }
+        .qr-label::after { content: 'QR'; position: absolute; bottom: 5px; right: 5px; font-size: 8px; color: #666; background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px; }
+        .bulk-label-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 5px; max-height: 300px; overflow-y: auto; }
+        .bulk-label-preview { border: 1px solid #e5e7eb; border-radius: 4px; padding: 5px; background: white; font-size: 10px; text-align: center; }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen" x-data="warehouseApp()" x-init="init()" x-cloak>
-    <div class="container mx-auto px-4 py-8">
-        <!-- Header -->
-        <header class="mb-10 fade-in">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 class="text-3xl md:text-4xl font-bold text-gray-800 text-shadow">
-                        <i class="fas fa-warehouse mr-3 text-blue-600"></i>
-                        Warehouse Management System
-                    </h1>
-                    <p class="text-gray-600 mt-2">Sistem Manajemen Gudang Terintegrasi - v4.1 dengan QR Code Scanner</p>
+
+    <!-- ========== LOGIN MODAL ========== -->
+    <div x-show="!isAuthenticated" class="fixed inset-0 bg-gray-800 bg-opacity-75 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 fade-in">
+            <div class="text-center mb-6">
+                <i class="fas fa-warehouse text-4xl text-blue-600 mb-3"></i>
+                <h2 class="text-2xl font-bold text-gray-800">Warehouse Management System</h2>
+                <p class="text-gray-600 mt-1">Silakan login untuk melanjutkan</p>
+            </div>
+            <form @submit.prevent="login">
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-semibold mb-2">Username</label>
+                    <input type="text" x-model="loginData.username" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
                 </div>
-                <div class="flex items-center space-x-3">
-                    <div class="hidden md:block text-right">
-                        <div class="text-sm text-gray-500">Status Sistem</div>
-                        <div class="flex items-center">
-                            <div class="h-2 w-2 rounded-full bg-green-500 mr-2 animate-pulse"></div>
-                            <span class="text-green-600 font-medium">Online</span>
-                        </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 font-semibold mb-2">Password</label>
+                    <input type="password" x-model="loginData.password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div x-show="loginError" class="mb-4 text-sm text-red-600 bg-red-50 p-2 rounded">
+                    <i class="fas fa-exclamation-circle mr-1"></i> <span x-text="loginError"></span>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200" :disabled="loginLoading">
+                    <i class="fas fa-spinner fa-spin mr-2" x-show="loginLoading"></i>
+                    <span x-text="loginLoading ? 'Logging in...' : 'Login'"></span>
+                </button>
+            </form>
+            <div class="mt-4 text-xs text-gray-500 text-center">
+                <p>Default: admin/admin (admin) | operator/operator (operator)</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== MAIN APP ========== -->
+    <div x-show="isAuthenticated" class="container mx-auto px-4 py-8">
+        <!-- Header dengan info user -->
+        <header class="mb-10 fade-in flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h1 class="text-3xl md:text-4xl font-bold text-gray-800 text-shadow">
+                    <i class="fas fa-warehouse mr-3 text-blue-600"></i>
+                    Warehouse Management System
+                </h1>
+                <p class="text-gray-600 mt-2">Sistem Manajemen Gudang Terintegrasi - v5.0 dengan Role Access</p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <div class="hidden md:block text-right">
+                    <div class="text-sm text-gray-500">Logged in as</div>
+                    <div class="flex items-center">
+                        <span class="font-semibold" x-text="user?.username"></span>
+                        <span class="ml-2 px-2 py-1 text-xs rounded-full" 
+                              :class="isAdmin ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'"
+                              x-text="user?.role"></span>
                     </div>
-                    
-                    <!-- QR Code Scanner Button -->
-                    <button @click="openQRScanModal" class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-sm hover:shadow-lg flex items-center">
-                        <i class="fas fa-qrcode mr-2"></i>
-                        <span class="hidden sm:inline">Scan QR</span>
-                    </button>
-                    
-                    <!-- Export CSV Button -->
-                    <button @click="exportToCSV" class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-sm hover:shadow-lg flex items-center">
-                        <i class="fas fa-file-export mr-2"></i>
-                        <span class="hidden sm:inline">Export CSV</span>
-                    </button>
-                    
-                    <!-- Settings Button -->
-                    <button @click="openSettingsModal" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200">
-                        <i class="fas fa-cog"></i>
-                    </button>
                 </div>
+                <button @click="logout" class="bg-red-100 hover:bg-red-200 text-red-700 font-semibold py-2 px-4 rounded-lg transition duration-200">
+                    <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                </button>
+                <button @click="openQRScanModal" class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-sm hover:shadow-lg flex items-center">
+                    <i class="fas fa-qrcode mr-2"></i> Scan QR
+                </button>
+                <!-- Tombol yang hanya untuk admin -->
+                <template x-if="isAdmin">
+                    <button @click="exportToCSV" class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-sm hover:shadow-lg flex items-center">
+                        <i class="fas fa-file-export mr-2"></i> Export CSV
+                    </button>
+                </template>
             </div>
         </header>
 
@@ -223,192 +103,92 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <!-- Left Column: Forms & Filters -->
             <div class="lg:col-span-1 space-y-6">
-                <!-- Form Tambah/Edit Item -->
-                <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 fade-in">
-                    <h2 class="text-xl font-bold text-gray-800 mb-6 pb-3 border-b flex items-center">
-                        <i class="fas fa-edit mr-3 text-blue-500 bg-blue-100 p-2 rounded-lg"></i>
-                        <span x-text="currentItem.id ? 'Edit Item' : 'Tambah Item Baru'"></span>
-                    </h2>
-                    
-                    <form @submit.prevent="saveItem" class="space-y-5">
-                        <input type="hidden" x-model="currentItem.id">
-                        
-                        <div class="space-y-2">
-                            <label class="block text-gray-700 font-semibold text-sm">
-                                Article <span class="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                x-model="currentItem.article"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                required
-                                placeholder="Contoh: Bearing 6201"
-                            >
-                        </div>
-                        
-                        <div class="space-y-2">
-                            <label class="block text-gray-700 font-semibold text-sm">
-                                Komponen <span class="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                x-model="currentItem.komponen"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                required
-                                placeholder="Contoh: Mesin Utama"
-                            >
-                        </div>
-                        
-                        <div class="space-y-2">
-                            <label class="block text-gray-700 font-semibold text-sm">
-                                No. Purchase Order
-                            </label>
-                            <input
-                                type="text"
-                                x-model="currentItem.noPo"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                placeholder="Contoh: PO-2023-001"
-                            >
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-4">
+                <!-- Form Tambah/Edit Item - HANYA ADMIN -->
+                <template x-if="isAdmin">
+                    <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 fade-in">
+                        <h2 class="text-xl font-bold text-gray-800 mb-6 pb-3 border-b flex items-center">
+                            <i class="fas fa-edit mr-3 text-blue-500 bg-blue-100 p-2 rounded-lg"></i>
+                            <span x-text="currentItem.id ? 'Edit Item' : 'Tambah Item Baru'"></span>
+                        </h2>
+                        <form @submit.prevent="saveItem" class="space-y-5">
+                            <input type="hidden" x-model="currentItem.id">
                             <div class="space-y-2">
-                                <label class="block text-gray-700 font-semibold text-sm">
-                                    Order (Dipesan)
-                                </label>
-                                <input
-                                    type="number"
-                                    x-model="currentItem.order"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                    min="0"
-                                >
+                                <label class="block text-gray-700 font-semibold text-sm">Article <span class="text-red-500">*</span></label>
+                                <input type="text" x-model="currentItem.article" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
                             </div>
-                            
                             <div class="space-y-2">
-                                <label class="block text-gray-700 font-semibold text-sm">
-                                    Qty (Stok) <span class="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="number"
-                                    x-model="currentItem.qty"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                    min="0"
-                                    required
-                                >
+                                <label class="block text-gray-700 font-semibold text-sm">Komponen <span class="text-red-500">*</span></label>
+                                <input type="text" x-model="currentItem.komponen" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
                             </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-2">
-                                <label class="block text-gray-700 font-semibold text-sm">
-                                    Min Stock
-                                </label>
-                                <input
-                                    type="number"
-                                    x-model="currentItem.minStock"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                    min="0"
-                                    value="10"
-                                >
+                                <label class="block text-gray-700 font-semibold text-sm">No. Purchase Order</label>
+                                <input type="text" x-model="currentItem.noPo" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
-                            
-                            <div class="space-y-2">
-                                <label class="block text-gray-700 font-semibold text-sm">
-                                    Lokasi (Kolom/Rak)
-                                </label>
-                                <div class="relative">
-                                    <input
-                                        type="text"
-                                        x-model="currentItem.kolom"
-                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                        placeholder="Contoh: A1, B2, C3"
-                                        list="locationSuggestions"
-                                    >
-                                    <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                        <i class="fas fa-map-marker-alt text-gray-400"></i>
-                                    </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-gray-700 font-semibold text-sm">Order (Dipesan)</label>
+                                    <input type="number" x-model="currentItem.order" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" min="0">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-gray-700 font-semibold text-sm">Qty (Stok) <span class="text-red-500">*</span></label>
+                                    <input type="number" x-model="currentItem.qty" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" required>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <datalist id="locationSuggestions">
-                            <template x-for="location in uniqueLocationsList" :key="location">
-                                <option :value="location"></option>
-                            </template>
-                        </datalist>
-                        
-                        <div class="pt-4 flex space-x-3">
-                            <button
-                                type="submit"
-                                class="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
-                                :disabled="savingItem"
-                            >
-                                <i class="fas fa-save mr-2" :class="{'fa-spinner spinner': savingItem}"></i>
-                                <span x-text="currentItem.id ? 'Update Item' : 'Simpan Item'"></span>
-                            </button>
-                            
-                            <button
-                                type="button"
-                                @click="resetForm"
-                                class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
-                            >
-                                <i class="fas fa-redo mr-2"></i>
-                                Reset
-                            </button>
-                        </div>
-                    </form>
-                </div>
-                
-                <!-- Filter & Stats -->
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-gray-700 font-semibold text-sm">Min Stock</label>
+                                    <input type="number" x-model="currentItem.minStock" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" value="10">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-gray-700 font-semibold text-sm">Lokasi (Kolom/Rak)</label>
+                                    <input type="text" x-model="currentItem.kolom" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" list="locationSuggestions">
+                                </div>
+                            </div>
+                            <datalist id="locationSuggestions">
+                                <template x-for="location in uniqueLocationsList" :key="location">
+                                    <option :value="location"></option>
+                                </template>
+                            </datalist>
+                            <div class="pt-4 flex space-x-3">
+                                <button type="submit" class="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg" :disabled="savingItem">
+                                    <i class="fas fa-save mr-2" :class="{'fa-spinner spinner': savingItem}"></i>
+                                    <span x-text="currentItem.id ? 'Update Item' : 'Simpan Item'"></span>
+                                </button>
+                                <button type="button" @click="resetForm" class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200">
+                                    <i class="fas fa-redo mr-2"></i> Reset
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </template>
+
+                <!-- Filter & Stats - SEMUA ROLE -->
                 <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 fade-in">
                     <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
                         <i class="fas fa-filter mr-3 text-purple-500 bg-purple-100 p-2 rounded-lg"></i>
                         Filter & Statistik
                     </h3>
-                    
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-gray-700 font-semibold text-sm mb-2">
-                                Cari Item:
-                            </label>
+                            <label class="block text-gray-700 font-semibold text-sm mb-2">Cari Item:</label>
                             <div class="relative">
-                                <input
-                                    type="text"
-                                    x-model="filter.search"
-                                    @keyup.enter="applyFilter"
-                                    class="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-                                    placeholder="Cari article, komponen, PO..."
-                                >
+                                <input type="text" x-model="filter.search" @keyup.enter="applyFilter" class="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Cari article, komponen, PO...">
                                 <i class="fas fa-search absolute left-3 top-3.5 text-gray-400"></i>
                             </div>
                         </div>
-                        
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-gray-700 font-semibold text-sm mb-2">
-                                    Lokasi:
-                                </label>
-                                <select
-                                    x-model="filter.kolom"
-                                    @change="applyFilter"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                >
+                                <label class="block text-gray-700 font-semibold text-sm mb-2">Lokasi:</label>
+                                <select x-model="filter.kolom" @change="applyFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     <option value="">Semua Lokasi</option>
                                     <template x-for="location in uniqueLocationsList" :key="location">
                                         <option :value="location" x-text="location"></option>
                                     </template>
                                 </select>
                             </div>
-                            
                             <div>
-                                <label class="block text-gray-700 font-semibold text-sm mb-2">
-                                    Komponen:
-                                </label>
-                                <select
-                                    x-model="filter.komponen"
-                                    @change="applyFilter"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                >
+                                <label class="block text-gray-700 font-semibold text-sm mb-2">Komponen:</label>
+                                <select x-model="filter.komponen" @change="applyFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     <option value="">Semua Komponen</option>
                                     <template x-for="komp in uniqueKomponenList" :key="komp">
                                         <option :value="komp" x-text="komp"></option>
@@ -416,99 +196,58 @@
                                 </select>
                             </div>
                         </div>
-                        
                         <div class="flex space-x-2 pt-2">
-                            <button
-                                @click="applyFilter"
-                                class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
-                            >
+                            <button @click="applyFilter" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
                                 <i class="fas fa-filter mr-2"></i>Terapkan
                             </button>
-                            <button
-                                @click="clearFilter"
-                                class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200"
-                            >
+                            <button @click="clearFilter" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
                     </div>
-                    
                     <!-- Stats Cards -->
                     <div class="pt-6 mt-6 border-t border-gray-200">
                         <h4 class="font-bold text-gray-800 mb-4">Statistik Gudang:</h4>
-                        
                         <div class="grid grid-cols-2 gap-3">
                             <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
                                 <div class="flex items-center">
-                                    <div class="bg-blue-100 p-2 rounded-lg mr-3">
-                                        <i class="fas fa-boxes text-blue-600"></i>
-                                    </div>
-                                    <div>
-                                        <p class="text-xs text-blue-700 font-medium">Total Items</p>
-                                        <p class="text-xl font-bold text-blue-800" x-text="stats.totalItems || items.length"></p>
-                                    </div>
+                                    <div class="bg-blue-100 p-2 rounded-lg mr-3"><i class="fas fa-boxes text-blue-600"></i></div>
+                                    <div><p class="text-xs text-blue-700 font-medium">Total Items</p><p class="text-xl font-bold text-blue-800" x-text="stats.totalItems || items.length"></p></div>
                                 </div>
                             </div>
-                            
                             <div class="bg-green-50 p-3 rounded-lg border border-green-100">
                                 <div class="flex items-center">
-                                    <div class="bg-green-100 p-2 rounded-lg mr-3">
-                                        <i class="fas fa-box-open text-green-600"></i>
-                                    </div>
-                                    <div>
-                                        <p class="text-xs text-green-700 font-medium">Total Qty</p>
-                                        <p class="text-xl font-bold text-green-800" x-text="formatNumber(totalQty)"></p>
-                                    </div>
+                                    <div class="bg-green-100 p-2 rounded-lg mr-3"><i class="fas fa-box-open text-green-600"></i></div>
+                                    <div><p class="text-xs text-green-700 font-medium">Total Qty</p><p class="text-xl font-bold text-green-800" x-text="formatNumber(totalQty)"></p></div>
                                 </div>
                             </div>
-                            
                             <div class="bg-amber-50 p-3 rounded-lg border border-amber-100">
                                 <div class="flex items-center">
-                                    <div class="bg-amber-100 p-2 rounded-lg mr-3">
-                                        <i class="fas fa-clipboard-list text-amber-600"></i>
-                                    </div>
-                                    <div>
-                                        <p class="text-xs text-amber-700 font-medium">Total Order</p>
-                                        <p class="text-xl font-bold text-amber-800" x-text="formatNumber(totalOrder)"></p>
-                                    </div>
+                                    <div class="bg-amber-100 p-2 rounded-lg mr-3"><i class="fas fa-clipboard-list text-amber-600"></i></div>
+                                    <div><p class="text-xs text-amber-700 font-medium">Total Order</p><p class="text-xl font-bold text-amber-800" x-text="formatNumber(totalOrder)"></p></div>
                                 </div>
                             </div>
-                            
                             <div class="bg-red-50 p-3 rounded-lg border border-red-100">
                                 <div class="flex items-center">
-                                    <div class="bg-red-100 p-2 rounded-lg mr-3">
-                                        <i class="fas fa-exclamation-triangle text-red-600"></i>
-                                    </div>
-                                    <div>
-                                        <p class="text-xs text-red-700 font-medium">Stok Rendah</p>
-                                        <p class="text-xl font-bold text-red-800" x-text="lowStockCount"></p>
-                                    </div>
+                                    <div class="bg-red-100 p-2 rounded-lg mr-3"><i class="fas fa-exclamation-triangle text-red-600"></i></div>
+                                    <div><p class="text-xs text-red-700 font-medium">Stok Rendah</p><p class="text-xl font-bold text-red-800" x-text="lowStockCount"></p></div>
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- QR Stats -->
                         <div class="mt-4 pt-4 border-t border-gray-200">
                             <h4 class="font-bold text-gray-800 mb-3">QR Code Statistics:</h4>
                             <div class="flex items-center justify-between p-2 bg-purple-50 rounded-lg">
                                 <div class="flex items-center">
-                                    <div class="bg-purple-100 p-2 rounded-lg mr-3">
-                                        <i class="fas fa-qrcode text-purple-600"></i>
-                                    </div>
-                                    <div>
-                                        <p class="text-xs text-purple-700 font-medium">QR Scans Today</p>
-                                        <p class="text-lg font-bold text-purple-800" x-text="todayScanCount"></p>
-                                    </div>
+                                    <div class="bg-purple-100 p-2 rounded-lg mr-3"><i class="fas fa-qrcode text-purple-600"></i></div>
+                                    <div><p class="text-xs text-purple-700 font-medium">QR Scans Today</p><p class="text-lg font-bold text-purple-800" x-text="todayScanCount"></p></div>
                                 </div>
-                                <button @click="openScanLogs" class="text-purple-600 hover:text-purple-800 text-sm">
-                                    <i class="fas fa-history mr-1"></i>Logs
-                                </button>
+                                <button @click="openScanLogs" class="text-purple-600 hover:text-purple-800 text-sm"><i class="fas fa-history mr-1"></i>Logs</button>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <!-- Right Column: Items Table & Dashboard -->
             <div class="lg:col-span-2 space-y-6">
                 <!-- Items Table Section -->
@@ -520,465 +259,216 @@
                                 Daftar Item Gudang
                                 <span class="text-sm font-normal text-gray-600 ml-2" x-text="'(' + items.length + ' items)'"></span>
                             </h2>
-                            <p class="text-gray-600 text-sm mt-1" x-show="filterActive">
-                                <i class="fas fa-info-circle mr-1"></i>
-                                <span x-text="getFilterDescription()"></span>
-                            </p>
                         </div>
-                        
                         <div class="flex flex-wrap gap-2">
                             <div class="relative">
-                                <input
-                                    type="text"
-                                    x-model="tableSearch"
-                                    @keyup.enter="loadItems"
-                                    class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                                    placeholder="Cari di tabel..."
-                                >
+                                <input type="text" x-model="tableSearch" @keyup.enter="loadItems" class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Cari di tabel...">
                                 <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-sm"></i>
                             </div>
-                            <button
-                                @click="loadItems"
-                                class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm"
-                                title="Refresh data"
-                            >
-                                <i class="fas fa-sync-alt mr-2" :class="{'fa-spinner spinner': loading}"></i>
-                                Refresh
+                            <button @click="loadItems" class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                                <i class="fas fa-sync-alt mr-2" :class="{'fa-spinner spinner': loading}"></i> Refresh
                             </button>
-                            <button
-                                @click="showLowStock = !showLowStock"
-                                :class="showLowStock ? 'bg-red-500 text-white' : 'bg-red-100 text-red-700'"
-                                class="font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm"
-                                title="Tampilkan item dengan stok rendah"
-                            >
-                                <i class="fas fa-exclamation-triangle mr-2"></i>
-                                Stok Rendah
+                            <button @click="showLowStock = !showLowStock" :class="showLowStock ? 'bg-red-500 text-white' : 'bg-red-100 text-red-700'" class="font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                                <i class="fas fa-exclamation-triangle mr-2"></i> Stok Rendah
                             </button>
-                            <button
-                                @click="openBulkLabelModal"
-                                class="bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm"
-                            >
-                                <i class="fas fa-tags mr-2"></i>
-                                Label Massal
-                            </button>
-                            <button
-                                @click="openPrintView"
-                                class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm"
-                            >
-                                <i class="fas fa-print mr-2"></i>
-                                Print
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Loading/Error States -->
-                    <div x-show="loading" class="p-10 text-center">
-                        <div class="inline-flex flex-col items-center">
-                            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-                            <p class="text-gray-600">Memuat data gudang...</p>
-                        </div>
-                    </div>
-                    
-                    <div x-show="error && !loading" class="p-4 bg-red-50 border-l-4 border-red-500 mx-6 mt-4 rounded">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <i class="fas fa-exclamation-circle text-red-400 text-xl"></i>
-                            </div>
-                            <div class="ml-3">
-                                <h3 class="text-sm font-medium text-red-800">Terjadi Kesalahan</h3>
-                                <div class="mt-1 text-sm text-red-700" x-text="error"></div>
-                            </div>
-                            <div class="ml-auto pl-3">
-                                <button @click="error = ''" class="text-red-500 hover:text-red-700">
-                                    <i class="fas fa-times"></i>
+                            <!-- Tombol yang hanya untuk admin -->
+                            <template x-if="isAdmin">
+                                <button @click="openBulkLabelModal" class="bg-green-100 hover:bg-green-200 text-green-700 font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                                    <i class="fas fa-tags mr-2"></i> Label Massal
                                 </button>
-                            </div>
+                            </template>
+                            <template x-if="isAdmin">
+                                <button @click="openPrintView" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                                    <i class="fas fa-print mr-2"></i> Print
+                                </button>
+                            </template>
                         </div>
                     </div>
-                    
+
+                    <!-- Loading/Error States -->
+                    <div x-show="loading" class="p-10 text-center"><div class="inline-flex flex-col items-center"><div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div><p class="text-gray-600">Memuat data gudang...</p></div></div>
+                    <div x-show="error && !loading" class="p-4 bg-red-50 border-l-4 border-red-500 mx-6 mt-4 rounded">
+                        <div class="flex"><div class="flex-shrink-0"><i class="fas fa-exclamation-circle text-red-400 text-xl"></i></div><div class="ml-3"><h3 class="text-sm font-medium text-red-800">Terjadi Kesalahan</h3><div class="mt-1 text-sm text-red-700" x-text="error"></div></div><div class="ml-auto pl-3"><button @click="error = ''" class="text-red-500 hover:text-red-700"><i class="fas fa-times"></i></button></div></div>
+                    </div>
+
                     <!-- Items Table -->
                     <div x-show="!loading" class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('id')">
-                                        ID <i class="fas fa-sort ml-1"></i>
-                                    </th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('article')">
-                                        Article <i class="fas fa-sort ml-1"></i>
-                                    </th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Komponen</th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">No. PO</th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('order')">
-                                        Order <i class="fas fa-sort ml-1"></i>
-                                    </th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('qty')">
-                                        Qty <i class="fas fa-sort ml-1"></i>
-                                    </th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Lokasi</th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('id')">ID <i class="fas fa-sort ml-1"></i></th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('article')">Article <i class="fas fa-sort ml-1"></i></th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Komponen</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">No. PO</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('order')">Order <i class="fas fa-sort ml-1"></i></th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer" @click="sortTable('qty')">Qty <i class="fas fa-sort ml-1"></i></th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Lokasi</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 <template x-for="item in filteredAndSortedItems" :key="item.id">
-                                    <tr 
-                                        class="table-row-hover transition duration-150"
-                                        :class="{'bg-red-50': item.qty <= item.minStock}"
-                                    >
-                                        <td class="px-4 py-3 whitespace-nowrap">
-                                            <span class="text-sm font-mono font-medium text-gray-900" x-text="item.id"></span>
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            <div class="text-sm font-medium text-gray-900" x-text="item.article"></div>
-                                            <div class="text-xs text-gray-500" x-text="'Min: ' + item.minStock"></div>
-                                        </td>
-                                        <td class="px-4 py-3 whitespace-nowrap">
-                                            <div class="text-sm text-gray-800" x-text="item.komponen"></div>
-                                        </td>
-                                        <td class="px-4 py-3 whitespace-nowrap">
-                                            <div class="text-sm text-gray-800" x-text="item.noPo || '-'"></div>
-                                        </td>
-                                        <td class="px-4 py-3 whitespace-nowrap">
-                                            <div class="text-sm text-gray-800" x-text="item.order"></div>
-                                        </td>
+                                    <tr class="table-row-hover transition duration-150" :class="{'bg-red-50': item.qty <= item.minStock}">
+                                        <td class="px-4 py-3 whitespace-nowrap"><span class="text-sm font-mono font-medium text-gray-900" x-text="item.id"></span></td>
+                                        <td class="px-4 py-3"><div class="text-sm font-medium text-gray-900" x-text="item.article"></div><div class="text-xs text-gray-500" x-text="'Min: ' + item.minStock"></div></td>
+                                        <td class="px-4 py-3 whitespace-nowrap"><div class="text-sm text-gray-800" x-text="item.komponen"></div></td>
+                                        <td class="px-4 py-3 whitespace-nowrap"><div class="text-sm text-gray-800" x-text="item.noPo || '-'"></div></td>
+                                        <td class="px-4 py-3 whitespace-nowrap"><div class="text-sm text-gray-800" x-text="item.order"></div></td>
                                         <td class="px-4 py-3 whitespace-nowrap">
                                             <div class="flex items-center space-x-2">
-                                                <span 
-                                                    class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
-                                                    :class="getQtyBadgeClass(item.qty, item.minStock)"
-                                                    x-text="item.qty"
-                                                ></span>
-                                                <div class="flex space-x-1">
-                                                    <button 
-                                                        @click="openQtyDetailModal(item)"
-                                                        class="text-blue-600 hover:text-blue-800 transition p-1"
-                                                        title="Update Qty Detail"
-                                                    >
-                                                        <i class="fas fa-edit text-xs"></i>
-                                                    </button>
-                                                </div>
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold" :class="getQtyBadgeClass(item.qty, item.minStock)" x-text="item.qty"></span>
+                                                <!-- Tombol Detail Update Qty - SEMUA ROLE -->
+                                                <button @click="openQtyDetailModal(item)" class="text-blue-600 hover:text-blue-800 transition p-1" title="Update Qty Detail"><i class="fas fa-edit text-xs"></i></button>
                                             </div>
                                         </td>
+                                        <td class="px-4 py-3 whitespace-nowrap"><span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800" x-text="item.kolom || 'Belum ada'"></span></td>
                                         <td class="px-4 py-3 whitespace-nowrap">
-                                            <span 
-                                                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800"
-                                                x-text="item.kolom || 'Belum ada'"
-                                            ></span>
-                                        </td>
-                                        <td class="px-4 py-3 whitespace-nowrap">
-                                            <span 
-                                                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
-                                                :class="getStatusBadgeClass(item.qty, item.minStock)"
-                                            >
-                                                <i :class="getStatusIcon(item.qty, item.minStock)"></i>
-                                                <span x-text="getStatusText(item.qty, item.minStock)"></span>
+                                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold" :class="getStatusBadgeClass(item.qty, item.minStock)">
+                                                <i :class="getStatusIcon(item.qty, item.minStock)"></i><span x-text="getStatusText(item.qty, item.minStock)"></span>
                                             </span>
                                         </td>
                                         <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
                                             <div class="flex space-x-2">
-                                                <button 
-                                                    @click="editItem(item)"
-                                                    class="text-blue-600 hover:text-blue-900 transition p-1"
-                                                    title="Edit item"
-                                                >
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                                <button 
-                                                    @click="openQtyHistoryModal(item)"
-                                                    class="text-purple-600 hover:text-purple-900 transition p-1"
-                                                    title="Riwayat Qty"
-                                                >
-                                                    <i class="fas fa-history"></i>
-                                                </button>
-                                                <button 
-                                                    @click="openLabelModal(item)"
-                                                    class="text-green-600 hover:text-green-900 transition p-1"
-                                                    title="Cetak Label"
-                                                >
-                                                    <i class="fas fa-tag"></i>
-                                                </button>
-                                                <button 
-                                                    @click="duplicateItem(item)"
-                                                    class="text-amber-600 hover:text-amber-900 transition p-1"
-                                                    title="Duplikat item"
-                                                >
-                                                    <i class="fas fa-copy"></i>
-                                                </button>
-                                                <button 
-                                                    @click="deleteItem(item.id)"
-                                                    class="text-red-600 hover:text-red-900 transition p-1"
-                                                    title="Hapus item"
-                                                >
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
+                                                <!-- Tombol Riwayat - SEMUA ROLE -->
+                                                <button @click="openQtyHistoryModal(item)" class="text-purple-600 hover:text-purple-900 transition p-1" title="Riwayat Qty"><i class="fas fa-history"></i></button>
+                                                <!-- Tombol Admin Only -->
+                                                <template x-if="isAdmin">
+                                                    <button @click="editItem(item)" class="text-blue-600 hover:text-blue-900 transition p-1" title="Edit item"><i class="fas fa-edit"></i></button>
+                                                </template>
+                                                <template x-if="isAdmin">
+                                                    <button @click="openLabelModal(item)" class="text-green-600 hover:text-green-900 transition p-1" title="Cetak Label"><i class="fas fa-tag"></i></button>
+                                                </template>
+                                                <template x-if="isAdmin">
+                                                    <button @click="duplicateItem(item)" class="text-amber-600 hover:text-amber-900 transition p-1" title="Duplikat item"><i class="fas fa-copy"></i></button>
+                                                </template>
+                                                <template x-if="isAdmin">
+                                                    <button @click="deleteItem(item.id)" class="text-red-600 hover:text-red-900 transition p-1" title="Hapus item"><i class="fas fa-trash"></i></button>
+                                                </template>
                                             </div>
                                         </td>
                                     </tr>
                                 </template>
-                                
                                 <tr x-show="filteredAndSortedItems.length === 0 && !loading">
                                     <td colspan="9" class="px-6 py-16 text-center">
                                         <div class="inline-flex flex-col items-center">
                                             <i class="fas fa-box-open text-gray-300 text-5xl mb-4"></i>
                                             <p class="text-gray-500 font-medium text-lg">Tidak ada data item</p>
-                                            <p class="text-gray-400 mt-2" x-text="showLowStock ? 'Tidak ada item dengan stok rendah' : 'Tambahkan item baru menggunakan form di sebelah kiri'"></p>
+                                            <p class="text-gray-400 mt-2" x-text="showLowStock ? 'Tidak ada item dengan stok rendah' : ''"></p>
                                         </div>
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
-                    
+
                     <!-- Table Footer -->
                     <div class="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <div class="text-sm text-gray-700">
-                            Menampilkan <span class="font-semibold" x-text="filteredAndSortedItems.length"></span> dari 
-                            <span class="font-semibold" x-text="items.length"></span> item
-                        </div>
+                        <div class="text-sm text-gray-700">Menampilkan <span class="font-semibold" x-text="filteredAndSortedItems.length"></span> dari <span class="font-semibold" x-text="items.length"></span> item</div>
                         <div class="flex items-center space-x-4">
-                            <div class="text-sm text-gray-700">
-                                <span class="font-semibold text-red-600" x-text="lowStockCount"></span> item dengan stok rendah
-                            </div>
+                            <div class="text-sm text-gray-700"><span class="font-semibold text-red-600" x-text="lowStockCount"></span> item dengan stok rendah</div>
                             <div class="flex space-x-2">
-                                <button
-                                    @click="previousPage"
-                                    :disabled="currentPage === 1"
-                                    class="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"
-                                >
-                                    <i class="fas fa-chevron-left"></i>
-                                </button>
+                                <button @click="previousPage" :disabled="currentPage === 1" class="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"><i class="fas fa-chevron-left"></i></button>
                                 <span class="px-3 py-1 text-sm" x-text="`Page ${currentPage}`"></span>
-                                <button
-                                    @click="nextPage"
-                                    :disabled="currentPage * itemsPerPage >= items.length"
-                                    class="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"
-                                >
-                                    <i class="fas fa-chevron-right"></i>
-                                </button>
+                                <button @click="nextPage" :disabled="currentPage * itemsPerPage >= items.length" class="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"><i class="fas fa-chevron-right"></i></button>
                             </div>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Dashboard Cards -->
+
+                <!-- Dashboard Cards - SEMUA ROLE -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Low Stock Alert -->
                     <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-200 rounded-xl p-5 fade-in">
                         <div class="flex items-center">
-                            <div class="bg-red-100 p-3 rounded-lg mr-4">
-                                <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
-                            </div>
-                            <div>
-                                <h3 class="font-bold text-red-800">Stok Rendah</h3>
-                                <p class="text-red-700 text-2xl font-bold" x-text="lowStockCount"></p>
-                                <p class="text-red-600 text-sm">Item perlu restock</p>
-                            </div>
+                            <div class="bg-red-100 p-3 rounded-lg mr-4"><i class="fas fa-exclamation-triangle text-red-600 text-xl"></i></div>
+                            <div><h3 class="font-bold text-red-800">Stok Rendah</h3><p class="text-red-700 text-2xl font-bold" x-text="lowStockCount"></p><p class="text-red-600 text-sm">Item perlu restock</p></div>
                         </div>
                     </div>
-                    
-                    <!-- QR Code Stats -->
                     <div class="bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-5 fade-in">
                         <div class="flex items-center">
-                            <div class="bg-purple-100 p-3 rounded-lg mr-4">
-                                <i class="fas fa-qrcode text-purple-600 text-xl"></i>
-                            </div>
-                            <div>
-                                <h3 class="font-bold text-purple-800">QR Scans</h3>
-                                <p class="text-purple-700 text-2xl font-bold" x-text="todayScanCount"></p>
-                                <p class="text-purple-600 text-sm">Scan hari ini</p>
-                            </div>
+                            <div class="bg-purple-100 p-3 rounded-lg mr-4"><i class="fas fa-qrcode text-purple-600 text-xl"></i></div>
+                            <div><h3 class="font-bold text-purple-800">QR Scans</h3><p class="text-purple-700 text-2xl font-bold" x-text="todayScanCount"></p><p class="text-purple-600 text-sm">Scan hari ini</p></div>
                         </div>
-                        <button @click="openQRScanModal" class="mt-3 text-sm text-purple-700 hover:text-purple-900">
-                            <i class="fas fa-camera mr-1"></i>Buka Scanner
-                        </button>
+                        <button @click="openQRScanModal" class="mt-3 text-sm text-purple-700 hover:text-purple-900"><i class="fas fa-camera mr-1"></i>Buka Scanner</button>
                     </div>
-                    
-                    <!-- Summary -->
                     <div class="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-5 fade-in">
                         <div class="flex items-center">
-                            <div class="bg-blue-100 p-3 rounded-lg mr-4">
-                                <i class="fas fa-chart-bar text-blue-600 text-xl"></i>
-                            </div>
-                            <div>
-                                <h3 class="font-bold text-blue-800">Ringkasan</h3>
-                                <p class="text-blue-700 text-sm">
-                                    <span x-text="uniqueLocations"></span> lokasi terisi • 
-                                    <span x-text="itemsWithNoPo"></span> item dengan PO
-                                </p>
-                                <p class="text-blue-700 text-sm">
-                                    <span x-text="formatNumber(totalQty)"></span> total stok
-                                </p>
-                            </div>
+                            <div class="bg-blue-100 p-3 rounded-lg mr-4"><i class="fas fa-chart-bar text-blue-600 text-xl"></i></div>
+                            <div><h3 class="font-bold text-blue-800">Ringkasan</h3><p class="text-blue-700 text-sm"><span x-text="uniqueLocations"></span> lokasi terisi • <span x-text="itemsWithNoPo"></span> item dengan PO</p><p class="text-blue-700 text-sm"><span x-text="formatNumber(totalQty)"></span> total stok</p></div>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Recent Activities -->
+
+                <!-- Recent Activities - SEMUA ROLE -->
                 <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 fade-in">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-bold text-gray-800 flex items-center">
-                            <i class="fas fa-history mr-3 text-purple-500 bg-purple-100 p-2 rounded-lg"></i>
-                            Aktivitas Terbaru
-                        </h3>
+                        <h3 class="text-lg font-bold text-gray-800 flex items-center"><i class="fas fa-history mr-3 text-purple-500 bg-purple-100 p-2 rounded-lg"></i>Aktivitas Terbaru</h3>
                         <div class="flex space-x-2">
-                            <button @click="toggleActivityView" class="text-sm text-purple-600 hover:text-purple-800">
-                                <i class="fas fa-exchange-alt mr-1"></i>
-                                <span x-text="showScanLogs ? 'Tampilkan Updates' : 'Tampilkan Scans'"></span>
-                            </button>
+                            <button @click="toggleActivityView" class="text-sm text-purple-600 hover:text-purple-800"><i class="fas fa-exchange-alt mr-1"></i><span x-text="showScanLogs ? 'Tampilkan Updates' : 'Tampilkan Scans'"></span></button>
                         </div>
                     </div>
-                    
                     <!-- Recent Updates -->
                     <div x-show="!showScanLogs" class="space-y-3">
                         <template x-for="activity in recentActivities" :key="activity.id">
                             <div class="flex items-center p-3 bg-gray-50 rounded-lg">
-                                <div class="flex-shrink-0 mr-3">
-                                    <div class="w-8 h-8 rounded-full flex items-center justify-center" 
-                                         :class="activity.changeAmount > 0 ? 'bg-green-100' : 'bg-red-100'">
-                                        <i :class="activity.changeAmount > 0 ? 'fas fa-arrow-up text-green-600' : 'fas fa-arrow-down text-red-600'"></i>
-                                    </div>
-                                </div>
-                                <div class="flex-1">
-                                    <p class="text-sm font-medium text-gray-900" x-text="activity.article"></p>
-                                    <p class="text-xs text-gray-500">
-                                        <span x-text="activity.notes"></span> • 
-                                        <span x-text="formatTimeAgo(activity.createdAt)"></span>
-                                    </p>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-sm font-semibold" 
-                                          :class="activity.changeAmount > 0 ? 'text-green-600' : 'text-red-600'"
-                                          x-text="(activity.changeAmount > 0 ? '+' : '') + activity.changeAmount"></span>
-                                    <p class="text-xs text-gray-500" x-text="`${activity.oldQty} → ${activity.newQty}`"></p>
-                                </div>
+                                <div class="flex-shrink-0 mr-3"><div class="w-8 h-8 rounded-full flex items-center justify-center" :class="activity.changeAmount > 0 ? 'bg-green-100' : 'bg-red-100'"><i :class="activity.changeAmount > 0 ? 'fas fa-arrow-up text-green-600' : 'fas fa-arrow-down text-red-600'"></i></div></div>
+                                <div class="flex-1"><p class="text-sm font-medium text-gray-900" x-text="activity.article"></p><p class="text-xs text-gray-500"><span x-text="activity.notes"></span> • <span x-text="formatTimeAgo(activity.createdAt)"></span></p></div>
+                                <div class="text-right"><span class="text-sm font-semibold" :class="activity.changeAmount > 0 ? 'text-green-600' : 'text-red-600'" x-text="(activity.changeAmount > 0 ? '+' : '') + activity.changeAmount"></span><p class="text-xs text-gray-500" x-text="`${activity.oldQty} → ${activity.newQty}`"></p></div>
                             </div>
                         </template>
-                        <div x-show="recentActivities.length === 0" class="text-center py-4 text-gray-500">
-                            <i class="fas fa-history text-2xl mb-2 block"></i>
-                            <p>Belum ada aktivitas</p>
-                        </div>
                     </div>
-                    
                     <!-- Recent Scans -->
                     <div x-show="showScanLogs" class="space-y-3">
                         <template x-for="scan in recentScans" :key="scan.id">
                             <div class="flex items-center p-3 bg-gray-50 rounded-lg">
-                                <div class="flex-shrink-0 mr-3">
-                                    <div class="w-8 h-8 rounded-full flex items-center justify-center bg-blue-100">
-                                        <i class="fas fa-qrcode text-blue-600"></i>
-                                    </div>
-                                </div>
-                                <div class="flex-1">
-                                    <p class="text-sm font-medium text-gray-900" x-text="scan.article || 'Scan QR'"></p>
-                                    <p class="text-xs text-gray-500">
-                                        <span x-text="scan.action"></span> • 
-                                        <span x-text="scan.result"></span> • 
-                                        <span x-text="formatTimeAgo(scan.createdAt)"></span>
-                                    </p>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-xs px-2 py-1 rounded-full" 
-                                          :class="scan.action === 'search' ? 'bg-blue-100 text-blue-800' : 
-                                                  scan.action === 'update' ? 'bg-green-100 text-green-800' :
-                                                  'bg-gray-100 text-gray-800'"
-                                          x-text="scan.action"></span>
-                                </div>
+                                <div class="flex-shrink-0 mr-3"><div class="w-8 h-8 rounded-full flex items-center justify-center bg-blue-100"><i class="fas fa-qrcode text-blue-600"></i></div></div>
+                                <div class="flex-1"><p class="text-sm font-medium text-gray-900" x-text="scan.article || 'Scan QR'"></p><p class="text-xs text-gray-500"><span x-text="scan.action"></span> • <span x-text="scan.result"></span> • <span x-text="formatTimeAgo(scan.createdAt)"></span></p></div>
+                                <div class="text-right"><span class="text-xs px-2 py-1 rounded-full" :class="scan.action === 'search' ? 'bg-blue-100 text-blue-800' : scan.action === 'update' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'" x-text="scan.action"></span></div>
                             </div>
                         </template>
-                        <div x-show="recentScans.length === 0" class="text-center py-4 text-gray-500">
-                            <i class="fas fa-qrcode text-2xl mb-2 block"></i>
-                            <p>Belum ada aktivitas scan</p>
-                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        
+
         <!-- Footer -->
         <footer class="mt-12 pt-8 border-t border-gray-200">
             <div class="flex flex-col md:flex-row justify-between items-center">
-                <div class="mb-4 md:mb-0">
-                    <p class="text-gray-600">
-                        <i class="fas fa-database mr-1"></i>
-                        Warehouse Management System v4.1
-                    </p>
-                    <p class="text-gray-500 text-sm mt-1">
-                        Dibuat dengan Express.js, SQLite, Tailwind CSS, Alpine.js, dan QR Code Scanner
-                    </p>
-                </div>
+                <div class="mb-4 md:mb-0"><p class="text-gray-600"><i class="fas fa-database mr-1"></i> Warehouse Management System v5.0</p><p class="text-gray-500 text-sm mt-1">Role-based access control aktif</p></div>
                 <div class="flex space-x-4">
-                    <span class="text-gray-500 text-sm">
-                        <i class="far fa-clock mr-1"></i>
-                        <span x-text="new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })"></span>
-                    </span>
-                    <span class="text-gray-500 text-sm">
-                        <i class="fas fa-server mr-1"></i>
-                        <span x-text="`${items.length} items`"></span>
-                    </span>
-                    <span class="text-gray-500 text-sm">
-                        <i class="fas fa-qrcode mr-1"></i>
-                        <span x-text="`${todayScanCount} scans`"></span>
-                    </span>
+                    <span class="text-gray-500 text-sm"><i class="far fa-clock mr-1"></i><span x-text="new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })"></span></span>
+                    <span class="text-gray-500 text-sm"><i class="fas fa-server mr-1"></i><span x-text="`${items.length} items`"></span></span>
+                    <span class="text-gray-500 text-sm"><i class="fas fa-qrcode mr-1"></i><span x-text="`${todayScanCount} scans`"></span></span>
                 </div>
             </div>
         </footer>
     </div>
-    
-    <!-- === MODALS === -->
-    
-    <!-- Modal QR Code Scanner -->
-    <div 
-        x-show="showQRScanModal" 
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
-        @click.away="closeQRScanModal"
-        x-cloak
-    >
+
+    <!-- ========== MODAL QR CODE SCANNER ========== -->
+    <div x-show="showQRScanModal" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+         @click.away="closeQRScanModal"
+         x-cloak>
         <div class="relative top-10 mx-auto p-4 border w-full max-w-2xl shadow-lg rounded-xl bg-white" @click.stop>
             <div class="flex justify-between items-center pb-4 border-b">
-                <h3 class="text-xl font-bold text-gray-800">
-                    <i class="fas fa-qrcode mr-2 text-purple-600"></i>
-                    QR Code Scanner
-                </h3>
-                <button @click="closeQRScanModal" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
+                <h3 class="text-xl font-bold text-gray-800"><i class="fas fa-qrcode mr-2 text-purple-600"></i>QR Code Scanner</h3>
+                <button @click="closeQRScanModal" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times text-xl"></i></button>
             </div>
-
             <div class="py-4">
                 <!-- Scanner Mode Selector -->
                 <div class="mb-6">
                     <div class="flex space-x-2 mb-4">
-                        <button 
-                            @click="qrScanMode = 'camera'"
-                            :class="qrScanMode === 'camera' ? 'bg-purple-600 text-white' : 'bg-gray-100'"
-                            class="flex-1 py-2 px-4 rounded-lg transition flex items-center justify-center"
-                        >
-                            <i class="fas fa-camera mr-2"></i>Camera
-                        </button>
-                        <button 
-                            @click="qrScanMode = 'upload'"
-                            :class="qrScanMode === 'upload' ? 'bg-purple-600 text-white' : 'bg-gray-100'"
-                            class="flex-1 py-2 px-4 rounded-lg transition flex items-center justify-center"
-                        >
-                            <i class="fas fa-upload mr-2"></i>Upload
-                        </button>
-                        <button 
-                            @click="qrScanMode = 'manual'"
-                            :class="qrScanMode === 'manual' ? 'bg-purple-600 text-white' : 'bg-gray-100'"
-                            class="flex-1 py-2 px-4 rounded-lg transition flex items-center justify-center"
-                        >
-                            <i class="fas fa-keyboard mr-2"></i>Manual
-                        </button>
+                        <button @click="qrScanMode = 'camera'" :class="qrScanMode === 'camera' ? 'bg-purple-600 text-white' : 'bg-gray-100'" class="flex-1 py-2 px-4 rounded-lg transition flex items-center justify-center"><i class="fas fa-camera mr-2"></i>Camera</button>
+                        <button @click="qrScanMode = 'upload'" :class="qrScanMode === 'upload' ? 'bg-purple-600 text-white' : 'bg-gray-100'" class="flex-1 py-2 px-4 rounded-lg transition flex items-center justify-center"><i class="fas fa-upload mr-2"></i>Upload</button>
+                        <button @click="qrScanMode = 'manual'" :class="qrScanMode === 'manual' ? 'bg-purple-600 text-white' : 'bg-gray-100'" class="flex-1 py-2 px-4 rounded-lg transition flex items-center justify-center"><i class="fas fa-keyboard mr-2"></i>Manual</button>
                     </div>
                 </div>
-                
                 <!-- Camera Scanner -->
                 <div x-show="qrScanMode === 'camera'" class="space-y-4">
                     <div class="text-center">
@@ -986,86 +476,39 @@
                             <video id="qr-video" class="w-full max-w-md mx-auto rounded" playsinline></video>
                             <div class="scan-line"></div>
                             <canvas id="qr-canvas" class="hidden"></canvas>
-                            <div x-show="!cameraAvailable" class="text-center py-8">
-                                <i class="fas fa-camera-slash text-4xl text-gray-300 mb-3"></i>
-                                <p class="text-gray-500">Kamera tidak tersedia</p>
-                                <p class="text-gray-400 text-sm">Izinkan akses kamera atau gunakan mode lain</p>
-                            </div>
+                            <div x-show="!cameraAvailable" class="text-center py-8"><i class="fas fa-camera-slash text-4xl text-gray-300 mb-3"></i><p class="text-gray-500">Kamera tidak tersedia</p><p class="text-gray-400 text-sm">Izinkan akses kamera atau gunakan mode lain</p></div>
                         </div>
                         <div class="mt-4 flex justify-center space-x-2">
-                            <button 
-                                @click="startCameraScan"
-                                :disabled="cameraScanning"
-                                class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition flex items-center"
-                            >
-                                <i class="fas fa-play mr-2" :class="{'fa-spinner spinner': cameraScanning}"></i>
-                                Start Camera
-                            </button>
-                            <button 
-                                @click="stopCameraScan"
-                                class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition flex items-center"
-                            >
-                                <i class="fas fa-stop mr-2"></i>
-                                Stop
-                            </button>
-                        </div>
-                        <div class="mt-2 text-xs text-gray-500">
-                            <p><i class="fas fa-info-circle mr-1"></i> Arahkan kamera ke QR Code untuk scan otomatis</p>
+                            <button @click="startCameraScan" :disabled="cameraScanning" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition flex items-center"><i class="fas fa-play mr-2" :class="{'fa-spinner spinner': cameraScanning}"></i>Start Camera</button>
+                            <button @click="stopCameraScan" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition flex items-center"><i class="fas fa-stop mr-2"></i>Stop</button>
                         </div>
                     </div>
                 </div>
-                
                 <!-- Upload QR Image -->
                 <div x-show="qrScanMode === 'upload'" class="space-y-4">
                     <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
                         <i class="fas fa-file-upload text-4xl text-gray-400 mb-4"></i>
                         <p class="text-gray-600 mb-4">Upload gambar QR Code</p>
                         <div class="file-upload">
-                            <input 
-                                type="file" 
-                                id="qr-file-input" 
-                                accept="image/*" 
-                                @change="handleQRFileUpload"
-                                class="hidden"
-                            >
-                            <label for="qr-file-input" class="cursor-pointer bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition inline-block">
-                                <i class="fas fa-folder-open mr-2"></i>Pilih File
-                            </label>
+                            <input type="file" id="qr-file-input" accept="image/*" @change="handleQRFileUpload" class="hidden">
+                            <label for="qr-file-input" class="cursor-pointer bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition inline-block"><i class="fas fa-folder-open mr-2"></i>Pilih File</label>
                         </div>
-                        <p class="text-sm text-gray-500 mt-2">Format: PNG, JPG, JPEG (max 5MB)</p>
                     </div>
                     <div x-show="qrUploadedImage" class="text-center">
                         <img :src="qrUploadedImage" alt="Uploaded QR" class="max-w-xs mx-auto rounded border shadow">
-                        <button 
-                            @click="scanUploadedQR"
-                            class="mt-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition"
-                        >
-                            <i class="fas fa-search mr-2"></i>Scan Gambar
-                        </button>
+                        <button @click="scanUploadedQR" class="mt-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition"><i class="fas fa-search mr-2"></i>Scan Gambar</button>
                     </div>
                 </div>
-                
                 <!-- Manual Input -->
                 <div x-show="qrScanMode === 'manual'" class="space-y-4">
                     <div>
-                        <label class="block text-gray-700 font-semibold text-sm mb-2">
-                            Masukkan kode QR atau ID Item
-                        </label>
-                        <textarea
-                            x-model="qrManualInput"
-                            rows="3"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-                            placeholder="Tempel kode QR atau ID item di sini..."
-                            @keyup.enter="processQRCode(qrManualInput)"
-                        ></textarea>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">Masukkan kode QR atau ID Item</label>
+                        <textarea x-model="qrManualInput" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition" placeholder="Tempel kode QR atau ID item di sini..." @keyup.enter="processQRCode(qrManualInput)"></textarea>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-gray-700 text-sm font-semibold mb-2">Tipe QR Code:</label>
-                            <select 
-                                x-model="qrType"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                            >
+                            <select x-model="qrType" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                                 <option value="auto">Auto Detect</option>
                                 <option value="id">ID Item (ITEM123)</option>
                                 <option value="full">Full Data (JSON)</option>
@@ -1073,63 +516,28 @@
                             </select>
                         </div>
                         <div class="flex items-end">
-                            <button 
-                                @click="processQRCode(qrManualInput)"
-                                :disabled="!qrManualInput.trim()"
-                                class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition flex items-center justify-center"
-                            >
-                                <i class="fas fa-search mr-2"></i>Cari Item
-                            </button>
+                            <button @click="processQRCode(qrManualInput)" :disabled="!qrManualInput.trim()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition flex items-center justify-center"><i class="fas fa-search mr-2"></i>Cari Item</button>
                         </div>
                     </div>
-                    <div class="text-xs text-gray-500">
-                        <p><i class="fas fa-info-circle mr-1"></i> Format yang didukung: JSON, ID Item, atau teks biasa</p>
-                    </div>
                 </div>
-                
                 <!-- Scan Result -->
                 <div x-show="scannedItem" class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
                     <div class="flex justify-between items-start mb-3">
                         <h4 class="font-bold text-blue-800">Item Ditemukan:</h4>
-                        <button @click="scannedItem = null" class="text-blue-500 hover:text-blue-700">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <button @click="scannedItem = null" class="text-blue-500 hover:text-blue-700"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <p class="text-sm text-blue-700">Article</p>
-                            <p class="font-bold text-lg" x-text="scannedItem.article"></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-blue-700">Stok Saat Ini</p>
-                            <p class="font-bold text-2xl" :class="scannedItem.qty <= scannedItem.minStock ? 'text-red-600' : 'text-green-600'" x-text="scannedItem.qty"></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-blue-700">ID Item</p>
-                            <p class="font-medium" x-text="scannedItem.id"></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-blue-700">Lokasi</p>
-                            <p class="font-medium" x-text="scannedItem.kolom || '-'"></p>
-                        </div>
+                        <div><p class="text-sm text-blue-700">Article</p><p class="font-bold text-lg" x-text="scannedItem.article"></p></div>
+                        <div><p class="text-sm text-blue-700">Stok Saat Ini</p><p class="font-bold text-2xl" :class="scannedItem.qty <= scannedItem.minStock ? 'text-red-600' : 'text-green-600'" x-text="scannedItem.qty"></p></div>
+                        <div><p class="text-sm text-blue-700">ID Item</p><p class="font-medium" x-text="scannedItem.id"></p></div>
+                        <div><p class="text-sm text-blue-700">Lokasi</p><p class="font-medium" x-text="scannedItem.kolom || '-'"></p></div>
                     </div>
-                    
                     <!-- Quick Update Controls -->
                     <div class="pt-4 border-t border-blue-200">
                         <h5 class="font-bold text-blue-800 mb-3">Quick Update via QR:</h5>
-                        
-                        <!-- Detail Update Button -->
-                        <div class="mt-4">
-                            <button 
-                                @click="openQRDetailUpdate()"
-                                class="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md"
-                            >
-                                <i class="fas fa-edit mr-2"></i>Detail Update
-                            </button>
-                        </div>
+                        <button @click="openQRDetailUpdate()" class="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md"><i class="fas fa-edit mr-2"></i>Detail Update</button>
                     </div>
                 </div>
-                
                 <!-- Multiple Results -->
                 <div x-show="scannedItems.length > 1" class="mt-6">
                     <h4 class="font-bold text-gray-800 mb-3">Multiple Items Found:</h4>
@@ -1137,29 +545,18 @@
                         <template x-for="item in scannedItems" :key="item.id">
                             <div class="p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" @click="selectScannedItem(item)">
                                 <div class="flex justify-between items-center">
-                                    <div>
-                                        <p class="font-medium" x-text="item.article"></p>
-                                        <p class="text-sm text-gray-500">ID: <span x-text="item.id"></span> • Qty: <span x-text="item.qty"></span></p>
-                                    </div>
+                                    <div><p class="font-medium" x-text="item.article"></p><p class="text-sm text-gray-500">ID: <span x-text="item.id"></span> • Qty: <span x-text="item.qty"></span></p></div>
                                     <i class="fas fa-chevron-right text-gray-400"></i>
                                 </div>
                             </div>
                         </template>
                     </div>
                 </div>
-
                 <div class="pt-6 mt-6 border-t border-gray-200">
                     <div class="flex justify-between">
-                        <div class="text-sm text-gray-600">
-                            <p x-show="lastScanTime">Last scan: <span x-text="formatTimeAgo(lastScanTime)"></span></p>
-                        </div>
+                        <div class="text-sm text-gray-600"><p x-show="lastScanTime">Last scan: <span x-text="formatTimeAgo(lastScanTime)"></span></p></div>
                         <div class="flex space-x-3">
-                            <button
-                                @click="closeQRScanModal"
-                                class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
-                            >
-                                Tutup
-                            </button>
+                            <button @click="closeQRScanModal" class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200">Tutup</button>
                         </div>
                     </div>
                 </div>
@@ -1167,19 +564,17 @@
         </div>
     </div>
 
-    <!-- Modal Detail Update Qty -->
-    <div 
-        x-show="showQtyDetailModal" 
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
-        @click.away="showQtyDetailModal = false"
-        x-cloak
-    >
+    <!-- ========== MODAL DETAIL UPDATE QTY ========== -->
+    <div x-show="showQtyDetailModal" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+         @click.away="showQtyDetailModal = false"
+         x-cloak>
         <div class="relative top-10 mx-auto p-4 border w-full max-w-2xl shadow-lg rounded-xl bg-white" @click.stop>
             <div class="flex justify-between items-center pb-4 border-b">
                 <h3 class="text-xl font-bold text-gray-800">
@@ -1190,42 +585,22 @@
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-
             <div class="py-4">
-                <!-- Form Update Qty Detail -->
-                <div x-show="!qtyHistoryLoading && selectedItemForQtyUpdate">
+                <div x-show="!qtyUpdateLoading && selectedItemForQtyUpdate">
                     <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
                         <h4 class="font-bold text-blue-800 mb-2">Item yang akan diupdate:</h4>
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <p class="text-sm text-blue-700">Article</p>
-                                <p class="font-bold" x-text="selectedItemForQtyUpdate.article"></p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-blue-700">Stok Saat Ini</p>
-                                <p class="font-bold text-lg" x-text="selectedItemForQtyUpdate.qty"></p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-blue-700">Komponen</p>
-                                <p class="font-medium" x-text="selectedItemForQtyUpdate.komponen"></p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-blue-700">Min Stock</p>
-                                <p class="font-medium" x-text="selectedItemForQtyUpdate.minStock"></p>
-                            </div>
+                            <div><p class="text-sm text-blue-700">Article</p><p class="font-bold" x-text="selectedItemForQtyUpdate.article"></p></div>
+                            <div><p class="text-sm text-blue-700">Stok Saat Ini</p><p class="font-bold text-lg" x-text="selectedItemForQtyUpdate.qty"></p></div>
+                            <div><p class="text-sm text-blue-700">Komponen</p><p class="font-medium" x-text="selectedItemForQtyUpdate.komponen"></p></div>
+                            <div><p class="text-sm text-blue-700">Min Stock</p><p class="font-medium" x-text="selectedItemForQtyUpdate.minStock"></p></div>
                         </div>
                     </div>
-
                     <form @submit.prevent="submitQtyDetailUpdate" class="space-y-4">
                         <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-2">
-                                <label class="block text-gray-700 font-semibold text-sm">
-                                    Tipe Update
-                                </label>
-                                <select 
-                                    x-model="qtyUpdateDetail.changeType"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                >
+                                <label class="block text-gray-700 font-semibold text-sm">Tipe Update</label>
+                                <select x-model="qtyUpdateDetail.changeType" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     <option value="inbound">Inbound (Masuk)</option>
                                     <option value="outbound">Outbound (Keluar)</option>
                                     <option value="adjustment">Adjustment (Penyesuaian)</option>
@@ -1234,123 +609,54 @@
                                     <option value="manual">Manual Update</option>
                                 </select>
                             </div>
-                            
                             <div class="space-y-2">
-                                <label class="block text-gray-700 font-semibold text-sm">
-                                    Updated By
-                                </label>
-                                <input
-                                    type="text"
-                                    x-model="qtyUpdateDetail.updatedBy"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                    placeholder="Nama operator"
-                                >
+                                <label class="block text-gray-700 font-semibold text-sm">Updated By</label>
+                                <input type="text" x-model="qtyUpdateDetail.updatedBy" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nama operator">
                             </div>
                         </div>
-
                         <div class="space-y-4">
-                            <!-- Mode Adjustment -->
                             <div x-show="qtyUpdateDetail.method === 'adjust'" class="space-y-2">
-                                <label class="block text-gray-700 font-semibold text-sm">
-                                    Adjustment (+/-) <span class="text-red-500">*</span>
-                                </label>
+                                <label class="block text-gray-700 font-semibold text-sm">Adjustment (+/-) <span class="text-red-500">*</span></label>
                                 <div class="relative">
-                                    <input
-                                        type="number"
-                                        x-model="qtyUpdateDetail.adjustment"
-                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                        placeholder="Contoh: +10 atau -5"
-                                        required
-                                        :class="{'border-green-500': qtyUpdateDetail.adjustment > 0, 'border-red-500': qtyUpdateDetail.adjustment < 0}"
-                                    >
+                                    <input type="number" x-model="qtyUpdateDetail.adjustment" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Contoh: +10 atau -5" required>
                                     <div class="absolute inset-y-0 right-0 flex items-center pr-3">
-                                        <span class="text-sm" 
-                                              :class="{'text-green-600': qtyUpdateDetail.adjustment > 0, 'text-red-600': qtyUpdateDetail.adjustment < 0}"
-                                              x-text="qtyUpdateDetail.adjustment > 0 ? `(+${qtyUpdateDetail.adjustment})` : `(${qtyUpdateDetail.adjustment})`"></span>
+                                        <span class="text-sm" :class="{'text-green-600': qtyUpdateDetail.adjustment > 0, 'text-red-600': qtyUpdateDetail.adjustment < 0}" x-text="qtyUpdateDetail.adjustment > 0 ? `(+${qtyUpdateDetail.adjustment})` : `(${qtyUpdateDetail.adjustment})`"></span>
                                     </div>
                                 </div>
                                 <p class="text-xs text-gray-500 mt-1">
                                     Stok saat ini: <span class="font-bold" x-text="selectedItemForQtyUpdate.qty"></span> 
-                                    → Hasil: <span class="font-bold text-green-600" 
-                                             x-text="parseInt(selectedItemForQtyUpdate.qty) + parseInt(qtyUpdateDetail.adjustment || 0)"></span>
+                                    → Hasil: <span class="font-bold text-green-600" x-text="parseInt(selectedItemForQtyUpdate.qty) + parseInt(qtyUpdateDetail.adjustment || 0)"></span>
                                 </p>
                             </div>
-                            
-                            <!-- Mode Set Absolut -->
                             <div x-show="qtyUpdateDetail.method === 'set'" class="space-y-2">
-                                <label class="block text-gray-700 font-semibold text-sm">
-                                    Qty Baru <span class="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="number"
-                                    x-model="qtyUpdateDetail.newQty"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                    min="0"
-                                    required
-                                >
+                                <label class="block text-gray-700 font-semibold text-sm">Qty Baru <span class="text-red-500">*</span></label>
+                                <input type="number" x-model="qtyUpdateDetail.newQty" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" min="0" required>
                                 <p class="text-xs text-gray-500 mt-1">
                                     Stok saat ini: <span class="font-bold" x-text="selectedItemForQtyUpdate.qty"></span> 
-                                    → Perubahan: <span class="font-bold" 
-                                                     :class="{'text-green-600': (parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)) > 0, 'text-red-600': (parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)) < 0}"
-                                                     x-text="(parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)) > 0 ? `+${parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)}` : (parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0))"></span>
+                                    → Perubahan: <span class="font-bold" :class="{'text-green-600': (parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)) > 0, 'text-red-600': (parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)) < 0}" x-text="(parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)) > 0 ? `+${parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0)}` : (parseInt(qtyUpdateDetail.newQty || 0) - parseInt(selectedItemForQtyUpdate.qty || 0))"></span>
                                 </p>
                             </div>
-                            
-                            <!-- Radio buttons untuk pilih metode -->
                             <div class="flex space-x-4 pt-2">
                                 <label class="flex items-center">
-                                    <input 
-                                        type="radio" 
-                                        name="updateMethod" 
-                                        value="adjust" 
-                                        x-model="qtyUpdateDetail.method"
-                                        class="mr-2"
-                                        checked
-                                    >
+                                    <input type="radio" name="updateMethod" value="adjust" x-model="qtyUpdateDetail.method" class="mr-2" checked>
                                     <span class="text-sm">Adjust (+/-)</span>
                                 </label>
                                 <label class="flex items-center">
-                                    <input 
-                                        type="radio" 
-                                        name="updateMethod" 
-                                        value="set" 
-                                        x-model="qtyUpdateDetail.method"
-                                        class="mr-2"
-                                    >
+                                    <input type="radio" name="updateMethod" value="set" x-model="qtyUpdateDetail.method" class="mr-2">
                                     <span class="text-sm">Set ke nilai</span>
                                 </label>
                             </div>
                         </div>
-
                         <div class="space-y-2">
-                            <label class="block text-gray-700 font-semibold text-sm">
-                                Catatan / Alasan
-                            </label>
-                            <textarea
-                                x-model="qtyUpdateDetail.notes"
-                                rows="3"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                placeholder="Jelaskan alasan perubahan qty..."
-                            ></textarea>
+                            <label class="block text-gray-700 font-semibold text-sm">Catatan / Alasan</label>
+                            <textarea x-model="qtyUpdateDetail.notes" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Jelaskan alasan perubahan qty..."></textarea>
                         </div>
-
                         <div class="pt-4 flex space-x-3">
-                            <button
-                                type="submit"
-                                class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
-                                :disabled="qtyUpdateLoading"
-                            >
+                            <button type="submit" class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg" :disabled="qtyUpdateLoading">
                                 <i class="fas fa-check-circle mr-2" :class="{'fa-spinner spinner': qtyUpdateLoading}"></i>
                                 <span x-text="qtyUpdateLoading ? 'Processing...' : 'Update Quantity'"></span>
                             </button>
-                            
-                            <button
-                                type="button"
-                                @click="showQtyDetailModal = false"
-                                class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
-                            >
-                                Batal
-                            </button>
+                            <button type="button" @click="showQtyDetailModal = false" class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200">Batal</button>
                         </div>
                     </form>
                 </div>
@@ -1358,19 +664,17 @@
         </div>
     </div>
 
-    <!-- Modal Riwayat Update Qty -->
-    <div 
-        x-show="showQtyHistoryModal" 
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
-        @click.away="showQtyHistoryModal = false"
-        x-cloak
-    >
+    <!-- ========== MODAL RIWAYAT UPDATE QTY ========== -->
+    <div x-show="showQtyHistoryModal" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+         @click.away="showQtyHistoryModal = false"
+         x-cloak>
         <div class="relative top-10 mx-auto p-4 border w-full max-w-4xl shadow-lg rounded-xl bg-white" @click.stop>
             <div class="flex justify-between items-center pb-4 border-b">
                 <div>
@@ -1384,16 +688,11 @@
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-
             <div class="py-4">
                 <!-- Filter Riwayat -->
                 <div class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div class="flex flex-wrap gap-2">
-                        <select 
-                            x-model="historyFilter.changeType"
-                            @change="loadQtyHistory()"
-                            class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
+                        <select x-model="historyFilter.changeType" @change="loadQtyHistory()" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Semua Tipe</option>
                             <option value="inbound">Inbound</option>
                             <option value="outbound">Outbound</option>
@@ -1401,35 +700,19 @@
                             <option value="correction">Koreksi</option>
                             <option value="qr_scan">QR Scan</option>
                         </select>
-                        
-                        <select 
-                            x-model="historyFilter.limit"
-                            @change="loadQtyHistory()"
-                            class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
+                        <select x-model="historyFilter.limit" @change="loadQtyHistory()" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="10">10 terakhir</option>
                             <option value="25">25 terakhir</option>
                             <option value="50">50 terakhir</option>
                             <option value="100">100 terakhir</option>
                         </select>
-                        
-                        <input
-                            type="date"
-                            x-model="historyFilter.startDate"
-                            @change="loadQtyHistory()"
-                            class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Dari tanggal"
-                        >
+                        <input type="date" x-model="historyFilter.startDate" @change="loadQtyHistory()" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Dari tanggal">
                     </div>
-                    
-                    <button
-                        @click="exportQtyHistory"
-                        class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold py-2 px-4 rounded-lg transition duration-200"
-                    >
+                    <!-- Tombol export hanya untuk admin -->
+                    <button x-show="isAdmin" @click="exportQtyHistory" class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold py-2 px-4 rounded-lg transition duration-200">
                         <i class="fas fa-file-export mr-2"></i>Export
                     </button>
                 </div>
-
                 <!-- Tabel Riwayat -->
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
@@ -1457,33 +740,27 @@
                                         <span class="text-sm font-medium text-green-900" x-text="history.newQty"></span>
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap">
-                                        <span 
-                                            class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
-                                            :class="{
-                                                'badge-green': history.changeAmount > 0,
-                                                'badge-red': history.changeAmount < 0,
-                                                'bg-gray-100 text-gray-800': history.changeAmount === 0
-                                            }"
-                                        >
-                                            <i 
-                                                :class="history.changeAmount > 0 ? 'fas fa-arrow-up mr-1' : history.changeAmount < 0 ? 'fas fa-arrow-down mr-1' : 'fas fa-equals mr-1'"
-                                            ></i>
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
+                                              :class="{
+                                                  'badge-green': history.changeAmount > 0,
+                                                  'badge-red': history.changeAmount < 0,
+                                                  'bg-gray-100 text-gray-800': history.changeAmount === 0
+                                              }">
+                                            <i :class="history.changeAmount > 0 ? 'fas fa-arrow-up mr-1' : history.changeAmount < 0 ? 'fas fa-arrow-down mr-1' : 'fas fa-equals mr-1'"></i>
                                             <span x-text="history.changeAmount > 0 ? '+' + history.changeAmount : history.changeAmount"></span>
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap">
-                                        <span 
-                                            class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
-                                            :class="{
-                                                'badge-blue': history.changeType === 'inbound',
-                                                'badge-red': history.changeType === 'outbound',
-                                                'badge-purple': history.changeType === 'adjustment',
-                                                'badge-yellow': history.changeType === 'correction',
-                                                'badge-orange': history.changeType === 'qr_scan',
-                                                'bg-gray-100 text-gray-800': history.changeType === 'manual'
-                                            }"
-                                            x-text="history.changeType"
-                                        ></span>
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
+                                              :class="{
+                                                  'badge-blue': history.changeType === 'inbound',
+                                                  'badge-red': history.changeType === 'outbound',
+                                                  'badge-purple': history.changeType === 'adjustment',
+                                                  'badge-yellow': history.changeType === 'correction',
+                                                  'badge-orange': history.changeType === 'qr_scan',
+                                                  'bg-gray-100 text-gray-800': history.changeType === 'manual'
+                                              }"
+                                              x-text="history.changeType"></span>
                                     </td>
                                     <td class="px-4 py-3 text-sm text-gray-900 max-w-xs" :title="history.notes">
                                         <span class="truncate block" x-text="history.notes"></span>
@@ -1493,7 +770,6 @@
                                     </td>
                                 </tr>
                             </template>
-                            
                             <tr x-show="qtyHistory.length === 0 && !qtyHistoryLoading">
                                 <td colspan="7" class="px-4 py-8 text-center">
                                     <div class="inline-flex flex-col items-center">
@@ -1505,7 +781,6 @@
                         </tbody>
                     </table>
                 </div>
-
                 <!-- Loading History -->
                 <div x-show="qtyHistoryLoading" class="text-center py-8">
                     <div class="inline-flex flex-col items-center">
@@ -1513,7 +788,6 @@
                         <p class="text-gray-600">Memuat riwayat...</p>
                     </div>
                 </div>
-                
                 <!-- Summary -->
                 <div x-show="qtyHistory.length > 0" class="mt-6 pt-6 border-t border-gray-200">
                     <h4 class="font-bold text-gray-800 mb-3">Ringkasan:</h4>
@@ -1544,131 +818,17 @@
         </div>
     </div>
 
-    <!-- Modal Bulk Update -->
-    <div 
-        x-show="showBulkUpdateModal" 
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
-        @click.away="showBulkUpdateModal = false"
-        x-cloak
-    >
-        <div class="relative top-10 mx-auto p-4 border w-full max-w-4xl shadow-lg rounded-xl bg-white" @click.stop>
-            <div class="flex justify-between items-center pb-4 border-b">
-                <h3 class="text-xl font-bold text-gray-800">
-                    <i class="fas fa-layer-group mr-2 text-purple-600"></i>
-                    Bulk Update Quantity
-                </h3>
-                <button @click="showBulkUpdateModal = false" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
-            </div>
-
-            <div class="py-4">
-                <div class="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-100">
-                    <h4 class="font-bold text-yellow-800 mb-2">
-                        <i class="fas fa-info-circle mr-2"></i>Petunjuk
-                    </h4>
-                    <p class="text-sm text-yellow-700">
-                        Pilih beberapa item dan tentukan adjustment yang sama untuk semua item yang dipilih.
-                    </p>
-                </div>
-
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-gray-700 font-semibold text-sm mb-2">
-                            Pilih Items untuk Bulk Update:
-                        </label>
-                        <div class="max-h-60 overflow-y-auto border border-gray-300 rounded-lg">
-                            <template x-for="item in items" :key="item.id">
-                                <label class="flex items-center p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
-                                    <input 
-                                        type="checkbox" 
-                                        x-model="selectedItemsForBulk" 
-                                        :value="item.id"
-                                        class="mr-3"
-                                    >
-                                    <div class="flex-1">
-                                        <span class="font-medium" x-text="item.article"></span>
-                                        <div class="text-sm text-gray-500">
-                                            <span x-text="item.komponen"></span> • 
-                                            <span x-text="'Qty: ' + item.qty"></span> • 
-                                            <span x-text="'Lokasi: ' + (item.kolom || '-')"></span>
-                                        </div>
-                                    </div>
-                                </label>
-                            </template>
-                        </div>
-                        <p class="text-sm text-gray-500 mt-2">
-                            <span x-text="selectedItemsForBulk.length"></span> item terpilih
-                        </p>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <label class="block text-gray-700 font-semibold text-sm">
-                                Adjustment untuk semua item
-                            </label>
-                            <input
-                                type="number"
-                                x-model="bulkUpdateData.adjustment"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                placeholder="Contoh: +10 atau -5"
-                                required
-                            >
-                        </div>
-                        <div class="space-y-2">
-                            <label class="block text-gray-700 font-semibold text-sm">
-                                Catatan
-                            </label>
-                            <input
-                                type="text"
-                                x-model="bulkUpdateData.notes"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                                placeholder="Alasan bulk update"
-                            >
-                        </div>
-                    </div>
-
-                    <div class="pt-4 flex space-x-3">
-                        <button
-                            @click="submitBulkUpdate"
-                            class="flex-1 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
-                            :disabled="selectedItemsForBulk.length === 0 || bulkUpdateLoading"
-                        >
-                            <i class="fas fa-layer-group mr-2" :class="{'fa-spinner spinner': bulkUpdateLoading}"></i>
-                            <span x-text="bulkUpdateLoading ? 'Processing...' : `Update ${selectedItemsForBulk.length} Items`"></span>
-                        </button>
-                        
-                        <button
-                            @click="showBulkUpdateModal = false"
-                            class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
-                        >
-                            Batal
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Label Item -->
-    <div 
-        x-show="showLabelModal" 
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
-        @click.away="showLabelModal = false"
-        x-cloak
-    >
+    <!-- ========== MODAL LABEL ITEM (SINGLE) ========== (hanya admin) -->
+    <div x-show="showLabelModal && isAdmin" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+         @click.away="showLabelModal = false"
+         x-cloak>
         <div class="relative top-10 mx-auto p-4 border w-full max-w-lg shadow-lg rounded-xl bg-white" @click.stop>
             <div class="flex justify-between items-center pb-4 border-b">
                 <h3 class="text-xl font-bold text-gray-800">
@@ -1679,99 +839,38 @@
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-
             <div class="py-4">
                 <div class="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
                     <h4 class="font-bold text-indigo-800 mb-2">Item yang akan dilabel:</h4>
                     <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-sm text-indigo-700">Article</p>
-                            <p class="font-bold" x-text="selectedItemForLabel?.article"></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-indigo-700">ID Item</p>
-                            <p class="font-bold" x-text="selectedItemForLabel?.id"></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-indigo-700">Lokasi</p>
-                            <p class="font-medium" x-text="selectedItemForLabel?.kolom || 'Belum diisi'"></p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-indigo-700">Stok</p>
-                            <p class="font-medium" x-text="selectedItemForLabel?.qty"></p>
-                        </div>
+                        <div><p class="text-sm text-indigo-700">Article</p><p class="font-bold" x-text="selectedItemForLabel?.article"></p></div>
+                        <div><p class="text-sm text-indigo-700">ID Item</p><p class="font-bold" x-text="selectedItemForLabel?.id"></p></div>
+                        <div><p class="text-sm text-indigo-700">Lokasi</p><p class="font-medium" x-text="selectedItemForLabel?.kolom || 'Belum diisi'"></p></div>
+                        <div><p class="text-sm text-indigo-700">Stok</p><p class="font-medium" x-text="selectedItemForLabel?.qty"></p></div>
                     </div>
                 </div>
-
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-gray-700 font-semibold text-sm mb-2">
-                            Jumlah Label (kopi)
-                        </label>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">Jumlah Label (kopi)</label>
                         <div class="flex items-center space-x-2">
-                            <button 
-                                @click="labelCopies = Math.max(1, labelCopies - 1)"
-                                class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"
-                            >
-                                <i class="fas fa-minus"></i>
-                            </button>
-                            <input
-                                type="number"
-                                x-model="labelCopies"
-                                min="1"
-                                max="50"
-                                class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center"
-                            >
-                            <button 
-                                @click="labelCopies = Math.min(50, labelCopies + 1)"
-                                class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"
-                            >
-                                <i class="fas fa-plus"></i>
-                            </button>
+                            <button @click="labelCopies = Math.max(1, labelCopies - 1)" class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"><i class="fas fa-minus"></i></button>
+                            <input type="number" x-model="labelCopies" min="1" max="50" class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center">
+                            <button @click="labelCopies = Math.min(50, labelCopies + 1)" class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"><i class="fas fa-plus"></i></button>
                             <span class="text-sm text-gray-500 ml-2">(maks: 50)</span>
                         </div>
                     </div>
-
                     <div>
-                        <label class="block text-gray-700 font-semibold text-sm mb-2">
-                            Ukuran Label
-                        </label>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">Ukuran Label</label>
                         <div class="grid grid-cols-3 gap-2">
-                            <button
-                                @click="labelSize = 'small'"
-                                :class="labelSize === 'small' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
-                                class="py-2 px-4 rounded-lg transition text-sm"
-                            >
-                                Kecil (2x1 in)
-                            </button>
-                            <button
-                                @click="labelSize = 'medium'"
-                                :class="labelSize === 'medium' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
-                                class="py-2 px-4 rounded-lg transition text-sm"
-                            >
-                                Sedang (3x2 in)
-                            </button>
-                            <button
-                                @click="labelSize = 'large'"
-                                :class="labelSize === 'large' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
-                                class="py-2 px-4 rounded-lg transition text-sm"
-                            >
-                                Besar (4x3 in)
-                            </button>
+                            <button @click="labelSize = 'small'" :class="labelSize === 'small' ? 'bg-blue-600 text-white' : 'bg-gray-100'" class="py-2 px-4 rounded-lg transition text-sm">Kecil (2x1 in)</button>
+                            <button @click="labelSize = 'medium'" :class="labelSize === 'medium' ? 'bg-blue-600 text-white' : 'bg-gray-100'" class="py-2 px-4 rounded-lg transition text-sm">Sedang (3x2 in)</button>
+                            <button @click="labelSize = 'large'" :class="labelSize === 'large' ? 'bg-blue-600 text-white' : 'bg-gray-100'" class="py-2 px-4 rounded-lg transition text-sm">Besar (4x3 in)</button>
                         </div>
                     </div>
-
                     <div class="grid grid-cols-2 gap-4">
-                        <label class="flex items-center space-x-2">
-                            <input type="checkbox" x-model="labelShowQR" class="rounded" checked>
-                            <span class="text-sm">Tampilkan QR Code</span>
-                        </label>
-                        <label class="flex items-center space-x-2">
-                            <input type="checkbox" x-model="labelShowBarcode" class="rounded">
-                            <span class="text-sm">Tampilkan Barcode</span>
-                        </label>
+                        <label class="flex items-center space-x-2"><input type="checkbox" x-model="labelShowQR" class="rounded" checked><span class="text-sm">Tampilkan QR Code</span></label>
+                        <label class="flex items-center space-x-2"><input type="checkbox" x-model="labelShowBarcode" class="rounded"><span class="text-sm">Tampilkan Barcode</span></label>
                     </div>
-
                     <!-- Preview Label -->
                     <div class="mt-6 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
                         <h4 class="font-bold text-gray-700 mb-2">Pratinjau Label:</h4>
@@ -1786,32 +885,18 @@
                                 <p class="truncate w-full text-center" x-text="selectedItemForLabel?.kolom || 'LOKASI'"></p>
                                 <p class="text-xs mt-1" x-text="'ID: ' + selectedItemForLabel?.id"></p>
                                 <div x-show="labelShowQR" class="mt-1">
-                                    <div class="w-8 h-8 bg-gray-200 flex items-center justify-center">
-                                        <i class="fas fa-qrcode text-gray-600 text-xs"></i>
-                                    </div>
+                                    <div class="w-8 h-8 bg-gray-200 flex items-center justify-center"><i class="fas fa-qrcode text-gray-600 text-xs"></i></div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-
                 <div class="pt-6 flex space-x-3">
-                    <button
-                        @click="printLabels"
-                        class="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
-                    >
-                        <i class="fas fa-print mr-2"></i>
-                        Cetak <span x-text="labelCopies"></span> Label
+                    <button @click="printLabels" class="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg">
+                        <i class="fas fa-print mr-2"></i> Cetak <span x-text="labelCopies"></span> Label
                     </button>
-                    
-                    <button
-                        @click="showLabelModal = false"
-                        class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
-                    >
-                        Batal
-                    </button>
+                    <button @click="showLabelModal = false" class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200">Batal</button>
                 </div>
-                
                 <div class="mt-4 text-xs text-gray-500">
                     <p><i class="fas fa-info-circle mr-1"></i> Label akan dicetak dalam jendela baru dengan QR Code asli dari server.</p>
                 </div>
@@ -1819,19 +904,17 @@
         </div>
     </div>
 
-    <!-- MODAL BULK LABEL (FIXED) -->
-    <div 
-        x-show="showBulkLabelModal" 
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
-        @click.away="showBulkLabelModal = false"
-        x-cloak
-    >
+    <!-- ========== MODAL BULK LABEL ========== (hanya admin) -->
+    <div x-show="showBulkLabelModal && isAdmin" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+         @click.away="showBulkLabelModal = false"
+         x-cloak>
         <div class="relative top-10 mx-auto p-4 border w-full max-w-6xl shadow-lg rounded-xl bg-white" @click.stop>
             <div class="flex justify-between items-center pb-4 border-b">
                 <h3 class="text-xl font-bold text-gray-800">
@@ -1842,33 +925,21 @@
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-
             <div class="py-4">
                 <div class="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
-                    <h4 class="font-bold text-indigo-800 mb-2">
-                        <i class="fas fa-info-circle mr-2"></i>Petunjuk
-                    </h4>
-                    <p class="text-sm text-indigo-700">
-                        Pilih item yang akan dicetak labelnya. Sistem akan membuat label dengan QR Code untuk setiap item.
-                    </p>
+                    <h4 class="font-bold text-indigo-800 mb-2"><i class="fas fa-info-circle mr-2"></i>Petunjuk</h4>
+                    <p class="text-sm text-indigo-700">Pilih item yang akan dicetak labelnya. Sistem akan membuat label dengan QR Code untuk setiap item.</p>
                 </div>
-
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- Kolom kiri: Daftar item -->
                     <div class="lg:col-span-2">
-                        <label class="block text-gray-700 font-semibold text-sm mb-2">
-                            Pilih Items untuk Label Massal:
-                        </label>
+                        <label class="block text-gray-700 font-semibold text-sm mb-2">Pilih Items untuk Label Massal:</label>
                         <div class="max-h-80 overflow-y-auto border border-gray-300 rounded-lg">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50 sticky top-0">
                                     <tr>
                                         <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
-                                            <input 
-                                                type="checkbox" 
-                                                @click="toggleSelectAllBulkLabels"
-                                                :checked="selectedItemsForBulkLabel.length === items.length"
-                                            >
+                                            <input type="checkbox" @click="toggleSelectAllBulkLabels" :checked="selectedItemsForBulkLabel.length === items.length">
                                         </th>
                                         <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Article</th>
                                         <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Komponen</th>
@@ -1879,14 +950,7 @@
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     <template x-for="item in items" :key="item.id">
                                         <tr class="hover:bg-gray-50">
-                                            <td class="px-4 py-2">
-                                                <input 
-                                                    type="checkbox" 
-                                                    x-model="selectedItemsForBulkLabel" 
-                                                    :value="item.id"
-                                                    class="mr-2"
-                                                >
-                                            </td>
+                                            <td class="px-4 py-2"><input type="checkbox" x-model="selectedItemsForBulkLabel" :value="item.id" class="mr-2"></td>
                                             <td class="px-4 py-2 text-sm font-medium text-gray-900" x-text="item.article"></td>
                                             <td class="px-4 py-2 text-sm text-gray-700" x-text="item.komponen"></td>
                                             <td class="px-4 py-2 text-sm text-gray-700" x-text="item.kolom || '-'"></td>
@@ -1897,92 +961,40 @@
                             </table>
                         </div>
                         <div class="flex justify-between items-center mt-2">
-                            <p class="text-sm text-gray-500">
-                                <span x-text="selectedItemsForBulkLabel.length"></span> item terpilih dari <span x-text="items.length"></span>
-                            </p>
-                            <button 
-                                @click="toggleSelectAllBulkLabels" 
-                                class="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                            >
+                            <p class="text-sm text-gray-500"><span x-text="selectedItemsForBulkLabel.length"></span> item terpilih dari <span x-text="items.length"></span></p>
+                            <button @click="toggleSelectAllBulkLabels" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
                                 <i class="fas fa-check-double mr-1"></i>
                                 <span x-text="selectedItemsForBulkLabel.length === items.length ? 'Hapus Semua' : 'Pilih Semua'"></span>
                             </button>
                         </div>
                     </div>
-
                     <!-- Kolom kanan: Pengaturan label -->
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-gray-700 font-semibold text-sm mb-2">
-                                Jumlah Label per Item
-                            </label>
+                            <label class="block text-gray-700 font-semibold text-sm mb-2">Jumlah Label per Item</label>
                             <div class="flex items-center space-x-2">
-                                <button 
-                                    @click="bulkLabelCopies = Math.max(1, bulkLabelCopies - 1)"
-                                    class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"
-                                >
-                                    <i class="fas fa-minus"></i>
-                                </button>
-                                <input
-                                    type="number"
-                                    x-model="bulkLabelCopies"
-                                    min="1"
-                                    max="10"
-                                    class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center"
-                                >
-                                <button 
-                                    @click="bulkLabelCopies = Math.min(10, bulkLabelCopies + 1)"
-                                    class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"
-                                >
-                                    <i class="fas fa-plus"></i>
-                                </button>
+                                <button @click="bulkLabelCopies = Math.max(1, bulkLabelCopies - 1)" class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"><i class="fas fa-minus"></i></button>
+                                <input type="number" x-model="bulkLabelCopies" min="1" max="10" class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center">
+                                <button @click="bulkLabelCopies = Math.min(10, bulkLabelCopies + 1)" class="w-8 h-8 flex items-center justify-center bg-gray-200 rounded-lg hover:bg-gray-300"><i class="fas fa-plus"></i></button>
                                 <span class="text-sm text-gray-500 ml-2">(maks: 10)</span>
                             </div>
                         </div>
-
                         <div>
-                            <label class="block text-gray-700 font-semibold text-sm mb-2">
-                                Format Label
-                            </label>
-                            <select 
-                                x-model="bulkLabelFormat"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg"
-                            >
+                            <label class="block text-gray-700 font-semibold text-sm mb-2">Format Label</label>
+                            <select x-model="bulkLabelFormat" class="w-full px-4 py-3 border border-gray-300 rounded-lg">
                                 <option value="simple">Simple (tanpa QR)</option>
                                 <option value="standard">Standard (dengan QR)</option>
                                 <option value="detailed">Detailed (lengkap)</option>
                             </select>
                         </div>
-
                         <div>
-                            <label class="block text-gray-700 font-semibold text-sm mb-2">
-                                Ukuran Label
-                            </label>
+                            <label class="block text-gray-700 font-semibold text-sm mb-2">Ukuran Label</label>
                             <div class="grid grid-cols-3 gap-2">
-                                <button
-                                    @click="bulkLabelSize = 'small'"
-                                    :class="bulkLabelSize === 'small' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
-                                    class="py-2 px-3 rounded-lg transition text-sm"
-                                >
-                                    Kecil (2x1 in)
-                                </button>
-                                <button
-                                    @click="bulkLabelSize = 'medium'"
-                                    :class="bulkLabelSize === 'medium' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
-                                    class="py-2 px-3 rounded-lg transition text-sm"
-                                >
-                                    Sedang (3x2 in)
-                                </button>
-                                <button
-                                    @click="bulkLabelSize = 'large'"
-                                    :class="bulkLabelSize === 'large' ? 'bg-blue-600 text-white' : 'bg-gray-100'"
-                                    class="py-2 px-3 rounded-lg transition text-sm"
-                                >
-                                    Besar (4x3 in)
-                                </button>
+                                <button @click="bulkLabelSize = 'small'" :class="bulkLabelSize === 'small' ? 'bg-blue-600 text-white' : 'bg-gray-100'" class="py-2 px-3 rounded-lg transition text-sm">Kecil</button>
+                                <button @click="bulkLabelSize = 'medium'" :class="bulkLabelSize === 'medium' ? 'bg-blue-600 text-white' : 'bg-gray-100'" class="py-2 px-3 rounded-lg transition text-sm">Sedang</button>
+                                <button @click="bulkLabelSize = 'large'" :class="bulkLabelSize === 'large' ? 'bg-blue-600 text-white' : 'bg-gray-100'" class="py-2 px-3 rounded-lg transition text-sm">Besar</button>
                             </div>
                         </div>
-
                         <!-- Preview Label -->
                         <div class="mt-4 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
                             <h4 class="font-bold text-gray-700 mb-2">Pratinjau Label:</h4>
@@ -1997,15 +1009,12 @@
                                     <p class="truncate w-full text-center">[Lokasi]</p>
                                     <p class="text-xs mt-1">ID: [ID]</p>
                                     <div x-show="bulkLabelFormat !== 'simple'" class="mt-1">
-                                        <div class="w-8 h-8 bg-gray-200 flex items-center justify-center">
-                                            <i class="fas fa-qrcode text-gray-600 text-xs"></i>
-                                        </div>
+                                        <div class="w-8 h-8 bg-gray-200 flex items-center justify-center"><i class="fas fa-qrcode text-gray-600 text-xs"></i></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Total Label yang akan dicetak -->
+                        <!-- Ringkasan Cetak -->
                         <div class="p-4 bg-blue-50 rounded-lg">
                             <h4 class="font-bold text-blue-800 mb-1">Ringkasan Cetak</h4>
                             <p class="text-sm text-blue-700">
@@ -2016,80 +1025,61 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="pt-6 flex space-x-3">
-                    <button
-                        @click="printBulkLabels"
-                        class="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
-                        :disabled="selectedItemsForBulkLabel.length === 0"
-                    >
-                        <i class="fas fa-print mr-2"></i>
-                        Cetak <span x-text="selectedItemsForBulkLabel.length * bulkLabelCopies"></span> Label
+                    <button @click="printBulkLabels" class="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg" :disabled="selectedItemsForBulkLabel.length === 0">
+                        <i class="fas fa-print mr-2"></i> Cetak <span x-text="selectedItemsForBulkLabel.length * bulkLabelCopies"></span> Label
                     </button>
-                    
-                    <button
-                        @click="showBulkLabelModal = false"
-                        class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200"
-                    >
-                        Batal
-                    </button>
+                    <button @click="showBulkLabelModal = false" class="px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200">Batal</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Notification Toast -->
-    <div 
-        x-show="showNotification" 
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 translate-y-2"
-        x-transition:enter-end="opacity-100 translate-y-0"
-        x-transition:leave="transition ease-in duration-300"
-        x-transition:leave-start="opacity-100 translate-y-0"
-        x-transition:leave-end="opacity-0 translate-y-2"
-        class="fixed bottom-4 right-4 max-w-sm w-full z-50"
-        x-cloak
-    >
-        <div 
-            class="rounded-xl shadow-lg p-4 border"
-            :class="notificationType === 'success' ? 'bg-green-50 border-green-200' : 
-                    notificationType === 'error' ? 'bg-red-50 border-red-200' :
-                    notificationType === 'warning' ? 'bg-yellow-50 border-yellow-200' :
-                    'bg-blue-50 border-blue-200'"
-        >
+    <!-- ========== NOTIFICATION TOAST ========== -->
+    <div x-show="showNotification" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 translate-y-2"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-300"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 translate-y-2"
+         class="fixed bottom-4 right-4 max-w-sm w-full z-50"
+         x-cloak>
+        <div class="rounded-xl shadow-lg p-4 border" 
+             :class="notificationType === 'success' ? 'bg-green-50 border-green-200' : 
+                     notificationType === 'error' ? 'bg-red-50 border-red-200' : 
+                     notificationType === 'warning' ? 'bg-yellow-50 border-yellow-200' : 
+                     'bg-blue-50 border-blue-200'">
             <div class="flex items-start">
                 <div class="flex-shrink-0">
-                    <i 
-                        class="text-xl"
-                        :class="notificationType === 'success' ? 'fas fa-check-circle text-green-500' : 
-                                notificationType === 'error' ? 'fas fa-exclamation-circle text-red-500' :
-                                notificationType === 'warning' ? 'fas fa-exclamation-triangle text-yellow-500' :
-                                'fas fa-info-circle text-blue-500'"
-                    ></i>
+                    <i class="text-xl" 
+                       :class="notificationType === 'success' ? 'fas fa-check-circle text-green-500' : 
+                               notificationType === 'error' ? 'fas fa-exclamation-circle text-red-500' : 
+                               notificationType === 'warning' ? 'fas fa-exclamation-triangle text-yellow-500' : 
+                               'fas fa-info-circle text-blue-500'"></i>
                 </div>
                 <div class="ml-3 w-0 flex-1">
                     <p class="font-medium" 
                        :class="notificationType === 'success' ? 'text-green-800' : 
-                               notificationType === 'error' ? 'text-red-800' :
-                               notificationType === 'warning' ? 'text-yellow-800' :
+                               notificationType === 'error' ? 'text-red-800' : 
+                               notificationType === 'warning' ? 'text-yellow-800' : 
                                'text-blue-800'"
                        x-text="notificationMessage"></p>
                 </div>
                 <div class="ml-4 flex-shrink-0 flex">
-                    <button 
-                        @click="showNotification = false"
-                        class="rounded-md inline-flex focus:outline-none"
-                        :class="notificationType === 'success' ? 'text-green-500 hover:text-green-600' : 
-                                notificationType === 'error' ? 'text-red-500 hover:text-red-600' :
-                                notificationType === 'warning' ? 'text-yellow-500 hover:text-yellow-600' :
-                                'text-blue-500 hover:text-blue-600'"
-                    >
+                    <button @click="showNotification = false" 
+                            class="rounded-md inline-flex focus:outline-none"
+                            :class="notificationType === 'success' ? 'text-green-500 hover:text-green-600' : 
+                                    notificationType === 'error' ? 'text-red-500 hover:text-red-600' : 
+                                    notificationType === 'warning' ? 'text-yellow-500 hover:text-yellow-600' : 
+                                    'text-blue-500 hover:text-blue-600'">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
             </div>
         </div>
     </div>
-    <script src="./assets/alpine.js"></script>   
+
+    <script src="./assets/alpine.js"></script>
 </body>
 </html>

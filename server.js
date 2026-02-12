@@ -1,23 +1,32 @@
 // Warehouse Management App (Express.js + SQLite + Sequelize)
-// Versi 4.1 dengan fitur QR Code Scanner dan QR otomatis di label
+// Versi 5.0 – Role Admin/Operator + QR Code Scanner
 
 const express = require('express');
+const session = require('express-session');
+const bcrypt = require('bcrypt');
 const bodyParser = require('body-parser');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const path = require('path');
 const QRCode = require('qrcode');
+const SQLiteStore = require('connect-sqlite3')(session);
 
 const app = express();
 app.use(bodyParser.json());
-
-// Serve static files from public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// DATABASE (SQLite + Sequelize)
+// ==================== DATABASE (SQLite + Sequelize) ====================
 const sequelize = new Sequelize({
   dialect: 'sqlite',
   storage: './warehouse.db',
   logging: false
+});
+
+// ==================== MODEL ====================
+// MODEL USER
+const User = sequelize.define('User', {
+  username: { type: DataTypes.STRING, allowNull: false, unique: true },
+  password: { type: DataTypes.STRING, allowNull: false },
+  role: { type: DataTypes.ENUM('admin', 'operator'), defaultValue: 'operator' }
 });
 
 // MODEL ITEM
@@ -29,62 +38,40 @@ const Item = sequelize.define('Item', {
   qty: { type: DataTypes.INTEGER, defaultValue: 0 },
   kolom: { type: DataTypes.STRING },
   minStock: { type: DataTypes.INTEGER, defaultValue: 10 }
-}, {
-  timestamps: true
-});
+}, { timestamps: true });
 
-// MODEL RIWAYAT UPDATE QTY
+// MODEL QTY HISTORY
 const QtyHistory = sequelize.define('QtyHistory', {
-  itemId: { 
-    type: DataTypes.INTEGER, 
-    allowNull: false,
-    references: {
-      model: Item,
-      key: 'id'
-    }
-  },
+  itemId: { type: DataTypes.INTEGER, allowNull: false, references: { model: Item, key: 'id' } },
   article: { type: DataTypes.STRING, allowNull: false },
   oldQty: { type: DataTypes.INTEGER, allowNull: false },
   newQty: { type: DataTypes.INTEGER, allowNull: false },
   changeAmount: { type: DataTypes.INTEGER, allowNull: false },
-  changeType: { 
-    type: DataTypes.ENUM('manual', 'adjustment', 'inbound', 'outbound', 'correction', 'qr_scan'),
-    defaultValue: 'manual'
-  },
+  changeType: { type: DataTypes.ENUM('manual','adjustment','inbound','outbound','correction','qr_scan'), defaultValue: 'manual' },
   notes: { type: DataTypes.TEXT },
   updatedBy: { type: DataTypes.STRING, defaultValue: 'System' }
-}, {
-  timestamps: true,
-  indexes: [
-    { fields: ['itemId'] },
-    { fields: ['createdAt'] }
-  ]
-});
+}, { timestamps: true, indexes: [{ fields: ['itemId'] }, { fields: ['createdAt'] }] });
 
-// MODEL LOKASI/RAK
+// MODEL LOKASI
 const Location = sequelize.define('Location', {
   name: { type: DataTypes.STRING, allowNull: false, unique: true },
   description: { type: DataTypes.TEXT },
   capacity: { type: DataTypes.INTEGER, defaultValue: 100 },
   currentItems: { type: DataTypes.INTEGER, defaultValue: 0 }
-}, {
-  timestamps: true
-});
+}, { timestamps: true });
 
 // MODEL SCAN LOG
 const ScanLog = sequelize.define('ScanLog', {
   itemId: { type: DataTypes.INTEGER, allowNull: false },
   article: { type: DataTypes.STRING },
-  scanType: { type: DataTypes.ENUM('qr', 'barcode', 'manual'), defaultValue: 'qr' },
+  scanType: { type: DataTypes.ENUM('qr','barcode','manual'), defaultValue: 'qr' },
   scanData: { type: DataTypes.TEXT },
-  action: { type: DataTypes.ENUM('search', 'update', 'check_in', 'check_out') },
+  action: { type: DataTypes.ENUM('search','update','check_in','check_out') },
   result: { type: DataTypes.TEXT },
   scannedBy: { type: DataTypes.STRING, defaultValue: 'System' }
-}, {
-  timestamps: true
-});
+}, { timestamps: true });
 
-// Asosiasi
+// ASSOCIATIONS
 Item.hasMany(QtyHistory, { foreignKey: 'itemId', onDelete: 'CASCADE' });
 QtyHistory.belongsTo(Item, { foreignKey: 'itemId' });
 Item.belongsTo(Location, { foreignKey: 'locationId' });
@@ -92,32 +79,80 @@ Location.hasMany(Item, { foreignKey: 'locationId' });
 Item.hasMany(ScanLog, { foreignKey: 'itemId', onDelete: 'CASCADE' });
 ScanLog.belongsTo(Item, { foreignKey: 'itemId' });
 
-// Sinkronisasi database
-sequelize.sync();
+// ==================== SESSION CONFIG ====================
+app.use(session({
+  store: new SQLiteStore({ db: 'sessions.db', dir: './' }),
+  secret: 'warehouse-secret-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 24 * 60 * 60 * 1000 } // 1 hari
+}));
 
-// Helper function untuk menentukan tipe perubahan
-function determineChangeType(changeAmount, specifiedType) {
-  if (specifiedType) return specifiedType;
-  
-  if (changeAmount > 0) return 'inbound';
-  if (changeAmount < 0) return 'outbound';
-  return 'manual';
+// ==================== AUTH MIDDLEWARE ====================
+function isAuthenticated(req, res, next) {
+  if (req.session.userId) return next();
+  res.status(401).json({ error: 'Unauthorized - Silakan login terlebih dahulu' });
 }
 
-// MIDDLEWARE: Logging
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
-  next();
+function isAdmin(req, res, next) {
+  if (req.session.role === 'admin') return next();
+  res.status(403).json({ error: 'Forbidden - Hanya untuk admin' });
+}
+
+// ==================== SYNC DATABASE & SEED DEFAULT USERS ====================
+sequelize.sync({ alter: true }).then(async () => {
+  const adminExists = await User.findOne({ where: { username: 'admin' } });
+  if (!adminExists) {
+    const hashedPassword = await bcrypt.hash('admin', 10);
+    await User.create({ username: 'admin', password: hashedPassword, role: 'admin' });
+    console.log('✅ Default admin created (admin/admin)');
+  }
+  const operatorExists = await User.findOne({ where: { username: 'operator' } });
+  if (!operatorExists) {
+    const hashedPassword = await bcrypt.hash('operator', 10);
+    await User.create({ username: 'operator', password: hashedPassword, role: 'operator' });
+    console.log('✅ Default operator created (operator/operator)');
+  }
 });
 
-// === API ROUTES ===
+// ==================== AUTH ROUTES ====================
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const user = await User.findOne({ where: { username } });
+    if (!user) return res.status(401).json({ error: 'Username atau password salah' });
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ error: 'Username atau password salah' });
+    req.session.userId = user.id;
+    req.session.username = user.username;
+    req.session.role = user.role;
+    res.json({ success: true, user: { id: user.id, username: user.username, role: user.role } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-// 1. CREATE ITEM
-app.post('/api/items', async (req, res) => {
+app.post('/api/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
+app.get('/api/me', (req, res) => {
+  if (req.session.userId) {
+    res.json({ id: req.session.userId, username: req.session.username, role: req.session.role });
+  } else {
+    res.status(401).json({ error: 'Not authenticated' });
+  }
+});
+
+// ==================== API ROUTES (semua harus login) ====================
+
+// 1. CREATE ITEM (hanya admin)
+app.post('/api/items', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const item = await Item.create(req.body);
-    
-    // Catat riwayat qty awal
     if (req.body.qty > 0) {
       await QtyHistory.create({
         itemId: item.id,
@@ -129,23 +164,18 @@ app.post('/api/items', async (req, res) => {
         notes: 'Initial stock creation'
       });
     }
-    
     res.json(item);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 2. LIST ITEMS dengan berbagai filter
-app.get('/api/items', async (req, res) => {
+// 2. LIST ITEMS (semua role)
+app.get('/api/items', isAuthenticated, async (req, res) => {
   try {
     const where = {};
     const order = [['updatedAt', 'DESC']];
-    
-    // Filter by column
     if (req.query.kolom) where.kolom = req.query.kolom;
-    
-    // Search filter
     if (req.query.search) {
       where[Op.or] = [
         { article: { [Op.like]: `%${req.query.search}%` } },
@@ -154,107 +184,63 @@ app.get('/api/items', async (req, res) => {
         { kolom: { [Op.like]: `%${req.query.search}%` } }
       ];
     }
-    
-    // Filter low stock
     if (req.query.lowStock === 'true') {
       where.qty = { [Op.lte]: sequelize.col('minStock') };
     }
-    
-    // Filter by komponen
-    if (req.query.komponen) {
-      where.komponen = req.query.komponen;
-    }
-    
-    // Sorting
+    if (req.query.komponen) where.komponen = req.query.komponen;
     if (req.query.sortBy) {
       const sortOrder = req.query.sortOrder === 'desc' ? 'DESC' : 'ASC';
       order.unshift([req.query.sortBy, sortOrder]);
     } else {
       order.unshift(['kolom', 'ASC'], ['article', 'ASC']);
     }
-    
-    // Pagination
     const limit = parseInt(req.query.limit) || 100;
     const offset = parseInt(req.query.offset) || 0;
-    
-    const items = await Item.findAll({ 
-      order,
-      where,
-      limit,
-      offset
-    });
-    
-    // Total count for pagination
+    const items = await Item.findAll({ order, where, limit, offset });
     const total = await Item.count({ where });
-    
-    res.json({
-      items,
-      total,
-      limit,
-      offset,
-      hasMore: (offset + items.length) < total
-    });
+    res.json({ items, total, limit, offset, hasMore: (offset + items.length) < total });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 3. GET SINGLE ITEM
-app.get('/api/items/:id', async (req, res) => {
+// 3. GET SINGLE ITEM (semua role)
+app.get('/api/items/:id', isAuthenticated, async (req, res) => {
   try {
     const item = await Item.findByPk(req.params.id);
-    if (!item) {
-      return res.status(404).json({ message: 'Item not found' });
-    }
+    if (!item) return res.status(404).json({ message: 'Item not found' });
     res.json(item);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 4. UPDATE ITEM dengan riwayat
-app.put('/api/items/:id', async (req, res) => {
+// 4. UPDATE ITEM (hanya admin)
+app.put('/api/items/:id', isAuthenticated, isAdmin, async (req, res) => {
   const transaction = await sequelize.transaction();
-  
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) {
       await transaction.rollback();
       return res.status(404).json({ message: 'Item not found' });
     }
-
     const oldQty = item.qty;
     const newQty = req.body.qty !== undefined ? parseInt(req.body.qty) : oldQty;
-    
-    // Simpan data lama
-    const oldData = {
-      article: item.article,
-      komponen: item.komponen,
-      noPo: item.noPo,
-      order: item.order,
-      qty: item.qty,
-      kolom: item.kolom
-    };
-
     await item.update(req.body, { transaction });
-
-    // Catat perubahan qty jika ada perubahan
     if (req.body.qty !== undefined && oldQty !== newQty) {
       const changeAmount = newQty - oldQty;
       const changeType = determineChangeType(changeAmount, req.body.changeType);
-      
       await QtyHistory.create({
         itemId: item.id,
         article: item.article,
-        oldQty: oldQty,
-        newQty: newQty,
-        changeAmount: changeAmount,
-        changeType: changeType,
+        oldQty,
+        newQty,
+        changeAmount,
+        changeType,
         notes: req.body.changeNotes || `Qty updated from ${oldQty} to ${newQty}`,
         updatedBy: req.body.updatedBy || 'System'
       }, { transaction });
     }
-
     await transaction.commit();
     res.json(item);
   } catch (err) {
@@ -263,15 +249,11 @@ app.put('/api/items/:id', async (req, res) => {
   }
 });
 
-// 5. DELETE ITEM
-app.delete('/api/items/:id', async (req, res) => {
+// 5. DELETE ITEM (hanya admin)
+app.delete('/api/items/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const item = await Item.findByPk(req.params.id);
-    if (!item) {
-      return res.status(404).json({ message: 'Item not found' });
-    }
-    
-    // Catat penghapusan di riwayat
+    if (!item) return res.status(404).json({ message: 'Item not found' });
     await QtyHistory.create({
       itemId: item.id,
       article: item.article,
@@ -282,7 +264,6 @@ app.delete('/api/items/:id', async (req, res) => {
       notes: 'Item deleted from system',
       updatedBy: 'System'
     });
-    
     await item.destroy();
     res.json({ status: 'deleted', message: 'Item deleted successfully' });
   } catch (err) {
@@ -290,66 +271,47 @@ app.delete('/api/items/:id', async (req, res) => {
   }
 });
 
-// 6. UPDATE QTY dengan detail (endpoint khusus)
-app.post('/api/items/:id/update-qty', async (req, res) => {
+// 6. UPDATE QTY dengan detail (semua role)
+app.post('/api/items/:id/update-qty', isAuthenticated, async (req, res) => {
   const transaction = await sequelize.transaction();
-  
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) {
       await transaction.rollback();
       return res.status(404).json({ message: 'Item not found' });
     }
-
     const { newQty, changeType, notes, updatedBy, adjustment } = req.body;
-    
     if (newQty === undefined && adjustment === undefined) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Either newQty or adjustment is required' });
     }
-
     const oldQty = item.qty;
     let finalQty = newQty !== undefined ? parseInt(newQty) : oldQty + parseInt(adjustment);
-    
-    // Validasi qty tidak negatif
     if (finalQty < 0) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Quantity cannot be negative' });
     }
-
-    // Update item
     await item.update({ qty: finalQty }, { transaction });
-
-    // Catat riwayat
     const history = await QtyHistory.create({
       itemId: item.id,
       article: item.article,
-      oldQty: oldQty,
+      oldQty,
       newQty: finalQty,
       changeAmount: finalQty - oldQty,
       changeType: changeType || (adjustment !== undefined ? 'adjustment' : 'manual'),
-      notes: notes || (adjustment !== undefined 
-        ? `Adjusted by ${adjustment > 0 ? '+' : ''}${adjustment}`
-        : `Updated from ${oldQty} to ${finalQty}`),
+      notes: notes || (adjustment !== undefined ? `Adjusted by ${adjustment > 0 ? '+' : ''}${adjustment}` : `Updated from ${oldQty} to ${finalQty}`),
       updatedBy: updatedBy || 'System'
     }, { transaction });
-
     await transaction.commit();
-    
-    res.json({
-      success: true,
-      item: item,
-      history: history,
-      message: `Qty updated from ${oldQty} to ${finalQty}`
-    });
+    res.json({ success: true, item, history, message: `Qty updated from ${oldQty} to ${finalQty}` });
   } catch (err) {
     await transaction.rollback();
     res.status(500).json({ error: err.message });
   }
 });
 
-// 7. GET QTY HISTORY untuk item tertentu
-app.get('/api/items/:id/qty-history', async (req, res) => {
+// 7. GET QTY HISTORY (semua role)
+app.get('/api/items/:id/qty-history', isAuthenticated, async (req, res) => {
   try {
     const history = await QtyHistory.findAll({
       where: { itemId: req.params.id },
@@ -362,29 +324,18 @@ app.get('/api/items/:id/qty-history', async (req, res) => {
   }
 });
 
-// 8. GET ALL QTY HISTORY (untuk dashboard)
-app.get('/api/qty-history', async (req, res) => {
+// 8. GET ALL QTY HISTORY (semua role)
+app.get('/api/qty-history', isAuthenticated, async (req, res) => {
   try {
     const where = {};
-    if (req.query.startDate) {
-      where.createdAt = { [Op.gte]: new Date(req.query.startDate) };
-    }
-    if (req.query.endDate) {
-      where.createdAt = { ...where.createdAt, [Op.lte]: new Date(req.query.endDate) };
-    }
-    if (req.query.changeType) {
-      where.changeType = req.query.changeType;
-    }
-    
+    if (req.query.startDate) where.createdAt = { [Op.gte]: new Date(req.query.startDate) };
+    if (req.query.endDate) where.createdAt = { ...where.createdAt, [Op.lte]: new Date(req.query.endDate) };
+    if (req.query.changeType) where.changeType = req.query.changeType;
     const history = await QtyHistory.findAll({
       where,
       order: [['createdAt', 'DESC']],
       limit: 100,
-      include: [{ 
-        model: Item, 
-        attributes: ['article', 'komponen', 'kolom'],
-        required: true
-      }]
+      include: [{ model: Item, attributes: ['article', 'komponen', 'kolom'], required: true }]
     });
     res.json(history);
   } catch (err) {
@@ -392,160 +343,103 @@ app.get('/api/qty-history', async (req, res) => {
   }
 });
 
-// 9. GET DASHBOARD STATS
-app.get('/api/dashboard/stats', async (req, res) => {
+// 9. GET DASHBOARD STATS (semua role)
+app.get('/api/dashboard/stats', isAuthenticated, async (req, res) => {
   try {
     const totalItems = await Item.count();
-    const totalQty = await Item.sum('qty');
-    const totalOrder = await Item.sum('order');
-    const lowStockItems = await Item.count({
-      where: {
-        qty: { [Op.lte]: sequelize.col('minStock') }
-      }
-    });
-    
-    // Items per location
+    const totalQty = await Item.sum('qty') || 0;
+    const totalOrder = await Item.sum('order') || 0;
+    const lowStockItems = await Item.count({ where: { qty: { [Op.lte]: sequelize.col('minStock') } } });
     const itemsByLocation = await Item.findAll({
-      attributes: [
-        'kolom',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'itemCount'],
-        [sequelize.fn('SUM', sequelize.col('qty')), 'totalQty']
-      ],
+      attributes: ['kolom', [sequelize.fn('COUNT', sequelize.col('id')), 'itemCount'], [sequelize.fn('SUM', sequelize.col('qty')), 'totalQty']],
       group: ['kolom'],
       having: sequelize.where(sequelize.col('kolom'), { [Op.not]: null }),
       order: [[sequelize.col('itemCount'), 'DESC']]
     });
-    
-    // Recent activities
     const recentActivities = await QtyHistory.findAll({
       order: [['createdAt', 'DESC']],
       limit: 10,
-      include: [{ 
-        model: Item, 
-        attributes: ['article', 'komponen']
-      }]
+      include: [{ model: Item, attributes: ['article', 'komponen'] }]
     });
-    
-    // Recent scans
     const recentScans = await ScanLog.findAll({
       order: [['createdAt', 'DESC']],
       limit: 5,
-      include: [{ 
-        model: Item,
-        attributes: ['article', 'komponen', 'kolom']
-      }]
+      include: [{ model: Item, attributes: ['article', 'komponen', 'kolom'] }]
     });
-    
-    res.json({
-      totalItems,
-      totalQty,
-      totalOrder,
-      lowStockItems,
-      itemsByLocation,
-      recentActivities,
-      recentScans
-    });
+    res.json({ totalItems, totalQty, totalOrder, lowStockItems, itemsByLocation, recentActivities, recentScans });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 10. GET UNIQUE VALUES (untuk filter dropdowns)
-app.get('/api/unique-values', async (req, res) => {
+// 10. GET UNIQUE VALUES (semua role)
+app.get('/api/unique-values', isAuthenticated, async (req, res) => {
   try {
     const komponen = await Item.findAll({
       attributes: [[sequelize.fn('DISTINCT', sequelize.col('komponen')), 'komponen']],
       where: { komponen: { [Op.not]: null } }
     });
-    
     const kolom = await Item.findAll({
       attributes: [[sequelize.fn('DISTINCT', sequelize.col('kolom')), 'kolom']],
       where: { kolom: { [Op.not]: null } },
       order: [['kolom', 'ASC']]
     });
-    
     res.json({
-      komponen: komponen.map(k => k.komponen),
-      kolom: kolom.map(k => k.kolom)
+      komponen: komponen.map(k => k.komponen).filter(Boolean),
+      kolom: kolom.map(k => k.kolom).filter(Boolean)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 11. BULK OPERATIONS
-app.post('/api/items/bulk/update-qty', async (req, res) => {
+// 11. BULK OPERATIONS (hanya admin)
+app.post('/api/items/bulk/update-qty', isAuthenticated, isAdmin, async (req, res) => {
   const transaction = await sequelize.transaction();
-  
   try {
     const { items, changeType, notes, updatedBy } = req.body;
-    
     if (!Array.isArray(items) || items.length === 0) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Items array is required' });
     }
-    
     const results = [];
-    
     for (const itemData of items) {
       const { id, adjustment, newQty } = itemData;
-      
       const item = await Item.findByPk(id);
       if (!item) continue;
-      
       const oldQty = item.qty;
       let finalQty = newQty !== undefined ? parseInt(newQty) : oldQty + parseInt(adjustment);
-      
       if (finalQty < 0) continue;
-      
       await item.update({ qty: finalQty }, { transaction });
-      
-      const history = await QtyHistory.create({
+      await QtyHistory.create({
         itemId: item.id,
         article: item.article,
-        oldQty: oldQty,
+        oldQty,
         newQty: finalQty,
         changeAmount: finalQty - oldQty,
         changeType: changeType || 'adjustment',
         notes: notes || `Bulk update: ${adjustment ? `Adjusted by ${adjustment}` : `Set to ${newQty}`}`,
         updatedBy: updatedBy || 'System'
       }, { transaction });
-      
-      results.push({
-        id: item.id,
-        article: item.article,
-        oldQty,
-        newQty: finalQty,
-        success: true
-      });
+      results.push({ id: item.id, article: item.article, oldQty, newQty: finalQty, success: true });
     }
-    
     await transaction.commit();
-    res.json({
-      success: true,
-      updatedCount: results.length,
-      results
-    });
+    res.json({ success: true, updatedCount: results.length, results });
   } catch (err) {
     await transaction.rollback();
     res.status(500).json({ error: err.message });
   }
 });
 
-// 12. EXPORT DATA TO CSV
-app.get('/api/export/csv', async (req, res) => {
+// 12. EXPORT CSV (hanya admin)
+app.get('/api/export/csv', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const items = await Item.findAll({
-      order: [['kolom', 'ASC'], ['article', 'ASC']]
-    });
-    
+    const items = await Item.findAll({ order: [['kolom', 'ASC'], ['article', 'ASC']] });
     const csvHeader = 'ID,Article,Komponen,No PO,Order,Qty,Min Stock,Lokasi,Created At,Updated At\n';
     const csvRows = items.map(item => 
       `${item.id},"${item.article}","${item.komponen}","${item.noPo || ''}",${item.order},${item.qty},${item.minStock},"${item.kolom || ''}","${item.createdAt}","${item.updatedAt}"`
     ).join('\n');
-    
     const csvContent = csvHeader + csvRows;
-    
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename=warehouse-export-${new Date().toISOString().split('T')[0]}.csv`);
     res.send(csvContent);
@@ -554,19 +448,16 @@ app.get('/api/export/csv', async (req, res) => {
   }
 });
 
-// 13. IMPORT DATA FROM CSV
-app.post('/api/import/csv', express.text({ type: 'text/csv' }), async (req, res) => {
+// 13. IMPORT CSV (hanya admin)
+app.post('/api/import/csv', isAuthenticated, isAdmin, express.text({ type: 'text/csv' }), async (req, res) => {
   try {
     const csvData = req.body;
     const lines = csvData.split('\n');
     const headers = lines[0].split(',');
-    
     const importedItems = [];
-    
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
-      
       const values = line.split(',');
       const itemData = {
         article: values[1]?.replace(/"/g, '') || '',
@@ -577,48 +468,33 @@ app.post('/api/import/csv', express.text({ type: 'text/csv' }), async (req, res)
         minStock: parseInt(values[6]) || 10,
         kolom: values[7]?.replace(/"/g, '') || ''
       };
-      
       const item = await Item.create(itemData);
       importedItems.push(item);
     }
-    
-    res.json({
-      success: true,
-      message: `Imported ${importedItems.length} items`,
-      items: importedItems
-    });
+    res.json({ success: true, message: `Imported ${importedItems.length} items`, items: importedItems });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 14. BACKUP DATABASE
-app.get('/api/backup', async (req, res) => {
+// 14. BACKUP (hanya admin)
+app.get('/api/backup', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    // Create backup file
     const backupData = await Item.findAll();
     const backupDate = new Date().toISOString().replace(/[:.]/g, '-');
-    
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename=warehouse-backup-${backupDate}.json`);
-    res.json({
-      timestamp: new Date(),
-      itemCount: backupData.length,
-      items: backupData
-    });
+    res.json({ timestamp: new Date(), itemCount: backupData.length, items: backupData });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 15. LOCATION MANAGEMENT
-app.get('/api/locations', async (req, res) => {
+// 15. LOCATION MANAGEMENT (hanya admin)
+app.get('/api/locations', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const locations = await Location.findAll({
-      include: [{
-        model: Item,
-        attributes: ['id', 'article', 'qty']
-      }],
+      include: [{ model: Item, attributes: ['id', 'article', 'qty'] }],
       order: [['name', 'ASC']]
     });
     res.json(locations);
@@ -627,7 +503,7 @@ app.get('/api/locations', async (req, res) => {
   }
 });
 
-app.post('/api/locations', async (req, res) => {
+app.post('/api/locations', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const location = await Location.create(req.body);
     res.json(location);
@@ -636,153 +512,55 @@ app.post('/api/locations', async (req, res) => {
   }
 });
 
-// 16. GENERATE LABEL DATA
-app.get('/api/items/:id/label-data', async (req, res) => {
+// 16. GENERATE LABEL DATA (hanya admin)
+app.get('/api/items/:id/label-data', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const item = await Item.findByPk(req.params.id);
-    if (!item) {
-      return res.status(404).json({ message: 'Item not found' });
-    }
-    
-    // Generate QR Code
-    const qrData = JSON.stringify({
-      id: item.id,
-      article: item.article,
-      komponen: item.komponen,
-      location: item.kolom,
-      minStock: item.minStock,
-      timestamp: new Date().toISOString(),
-      action: 'scan_update'
-    });
-    
-    const qrCodeDataURL = await QRCode.toDataURL(qrData, {
-      errorCorrectionLevel: 'H',
-      type: 'image/png',
-      margin: 1,
-      scale: 6,
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF'
-      }
-    });
-    
-    // Generate label data
-    const labelData = {
-      id: item.id,
-      article: item.article,
-      komponen: item.komponen,
-      noPo: item.noPo,
-      qty: item.qty,
-      minStock: item.minStock,
-      kolom: item.kolom,
-      createdAt: item.createdAt,
-      barcodeData: `ITEM${item.id.toString().padStart(6, '0')}`,
-      qrData: qrData,
-      qrCodeDataURL: qrCodeDataURL
-    };
-    
+    if (!item) return res.status(404).json({ message: 'Item not found' });
+    const qrData = JSON.stringify({ id: item.id, article: item.article, komponen: item.komponen, location: item.kolom, minStock: item.minStock, timestamp: new Date().toISOString(), action: 'scan_update' });
+    const qrCodeDataURL = await QRCode.toDataURL(qrData, { errorCorrectionLevel: 'H', type: 'image/png', margin: 1, scale: 6, color: { dark: '#000000', light: '#FFFFFF' } });
+    const labelData = { id: item.id, article: item.article, komponen: item.komponen, noPo: item.noPo, qty: item.qty, minStock: item.minStock, kolom: item.kolom, createdAt: item.createdAt, barcodeData: `ITEM${item.id.toString().padStart(6, '0')}`, qrData, qrCodeDataURL };
     res.json(labelData);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 17. GENERATE BULK LABELS (FIXED)
-app.post('/api/labels/bulk', async (req, res) => {
+// 17. GENERATE BULK LABELS (hanya admin)
+app.post('/api/labels/bulk', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { itemIds } = req.body;
-    
-    if (!Array.isArray(itemIds) || itemIds.length === 0) {
-      return res.status(400).json({ message: 'Item IDs array is required' });
-    }
-    
-    const items = await Item.findAll({
-      where: { id: itemIds },
-      order: [['kolom', 'ASC'], ['article', 'ASC']]
-    });
-    
-    // Generate QR codes for each item
+    if (!Array.isArray(itemIds) || itemIds.length === 0) return res.status(400).json({ message: 'Item IDs array is required' });
+    const items = await Item.findAll({ where: { id: itemIds }, order: [['kolom', 'ASC'], ['article', 'ASC']] });
     const labels = [];
     for (const item of items) {
-      const qrData = JSON.stringify({
-        id: item.id,
-        article: item.article,
-        komponen: item.komponen,
-        location: item.kolom,
-        qty: item.qty,
-        minStock: item.minStock,
-        timestamp: new Date().toISOString(),
-        action: 'scan_update'
-      });
-      
-      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
-        errorCorrectionLevel: 'H',
-        type: 'image/png',
-        margin: 1,
-        scale: 6,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      });
-      
-      labels.push({
-        id: item.id,
-        article: item.article,
-        komponen: item.komponen,
-        qty: item.qty,
-        kolom: item.kolom,
-        minStock: item.minStock,
-        noPo: item.noPo || '',
-        barcode: `WH${item.id.toString().padStart(6, '0')}`,
-        qrData: qrData,
-        qrCodeDataURL: qrCodeDataURL,
-        timestamp: new Date().toISOString()
-      });
+      const qrData = JSON.stringify({ id: item.id, article: item.article, komponen: item.komponen, location: item.kolom, qty: item.qty, minStock: item.minStock, timestamp: new Date().toISOString(), action: 'scan_update' });
+      const qrCodeDataURL = await QRCode.toDataURL(qrData, { errorCorrectionLevel: 'H', type: 'image/png', margin: 1, scale: 6, color: { dark: '#000000', light: '#FFFFFF' } });
+      labels.push({ id: item.id, article: item.article, komponen: item.komponen, qty: item.qty, kolom: item.kolom, minStock: item.minStock, noPo: item.noPo || '', barcode: `WH${item.id.toString().padStart(6, '0')}`, qrData, qrCodeDataURL, timestamp: new Date().toISOString() });
     }
-    
-    res.json({
-      success: true,
-      count: labels.length,
-      labels: labels
-    });
+    res.json({ success: true, count: labels.length, labels });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 18. QR CODE SCAN & SEARCH
-app.post('/api/qr-scan', async (req, res) => {
+// 18. QR SCAN & SEARCH (semua role)
+app.post('/api/qr-scan', isAuthenticated, async (req, res) => {
   try {
     const { qrData, type = 'auto' } = req.body;
-    
-    if (!qrData) {
-      return res.status(400).json({ message: 'QR data is required' });
-    }
-    
+    if (!qrData) return res.status(400).json({ message: 'QR data is required' });
     let where = {};
-    
-    // Parse QR data berdasarkan tipe
     if (type === 'full' || type === 'auto') {
       try {
-        // Coba parse sebagai JSON
         const parsedData = JSON.parse(qrData);
-        if (parsedData.id) {
-          where.id = parsedData.id;
-        } else if (parsedData.article) {
-          where.article = { [Op.like]: `%${parsedData.article}%` };
-        }
+        if (parsedData.id) where.id = parsedData.id;
+        else if (parsedData.article) where.article = { [Op.like]: `%${parsedData.article}%` };
       } catch (err) {
-        // Jika bukan JSON, cari berdasarkan pattern
-        if (!isNaN(qrData)) {
-          // Numeric ID
-          where.id = parseInt(qrData);
-        } else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) {
-          // Format "ITEM123" atau "WH123"
+        if (!isNaN(qrData)) where.id = parseInt(qrData);
+        else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) {
           const itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
           where.id = itemId;
         } else {
-          // Search by article or komponen
           where[Op.or] = [
             { article: { [Op.like]: `%${qrData}%` } },
             { komponen: { [Op.like]: `%${qrData}%` } },
@@ -791,198 +569,76 @@ app.post('/api/qr-scan', async (req, res) => {
         }
       }
     } else if (type === 'id') {
-      // QR berisi ID item saja
-      if (!isNaN(qrData)) {
-        where.id = parseInt(qrData);
-      } else {
+      if (!isNaN(qrData)) where.id = parseInt(qrData);
+      else {
         const itemId = qrData.replace(/[^0-9]/g, '');
-        if (itemId) {
-          where.id = parseInt(itemId);
-        }
+        if (itemId) where.id = parseInt(itemId);
       }
     } else if (type === 'article') {
       where.article = { [Op.like]: `%${qrData}%` };
     }
-    
-    const items = await Item.findAll({
-      where,
-      order: [['updatedAt', 'DESC']],
-      limit: 10
-    });
-    
-    // Log the scan
+    const items = await Item.findAll({ where, order: [['updatedAt', 'DESC']], limit: 10 });
     if (items.length > 0) {
-      await ScanLog.create({
-        itemId: items[0].id,
-        article: items[0].article,
-        scanType: 'qr',
-        scanData: qrData,
-        action: 'search',
-        result: `Found ${items.length} items`,
-        scannedBy: req.body.scannedBy || 'System'
-      });
+      await ScanLog.create({ itemId: items[0].id, article: items[0].article, scanType: 'qr', scanData: qrData, action: 'search', result: `Found ${items.length} items`, scannedBy: req.body.scannedBy || 'System' });
     }
-    
-    if (items.length === 0) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Item tidak ditemukan',
-        qrData,
-        type
-      });
-    }
-    
-    res.json({
-      success: true,
-      count: items.length,
-      items,
-      qrData
-    });
+    if (items.length === 0) return res.status(404).json({ success: false, message: 'Item tidak ditemukan', qrData, type });
+    res.json({ success: true, count: items.length, items, qrData });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 19. QUICK UPDATE VIA QR
-app.post('/api/qr-quick-update', async (req, res) => {
+// 19. QUICK UPDATE VIA QR (semua role)
+app.post('/api/qr-quick-update', isAuthenticated, async (req, res) => {
   const transaction = await sequelize.transaction();
-  
   try {
     const { qrData, adjustment, newQty, changeType, notes, updatedBy } = req.body;
-    
-    if (!qrData) {
-      await transaction.rollback();
-      return res.status(400).json({ message: 'QR data is required' });
-    }
-    
-    if (adjustment === undefined && newQty === undefined) {
-      await transaction.rollback();
-      return res.status(400).json({ message: 'Either adjustment or newQty is required' });
-    }
-    
-    // Parse QR untuk mendapatkan ID item
-    let itemId;
-    let item;
-    
-    // Try to parse as JSON first
+    if (!qrData) { await transaction.rollback(); return res.status(400).json({ message: 'QR data is required' }); }
+    if (adjustment === undefined && newQty === undefined) { await transaction.rollback(); return res.status(400).json({ message: 'Either adjustment or newQty is required' }); }
+    let itemId; let item;
     try {
       const parsedData = JSON.parse(qrData);
-      if (parsedData.id) {
-        itemId = parsedData.id;
-      }
+      if (parsedData.id) itemId = parsedData.id;
     } catch (err) {
-      // Not JSON, try other formats
-      if (!isNaN(qrData)) {
-        itemId = parseInt(qrData);
-      } else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) {
-        itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
-      } else {
-        // Search by article
-        item = await Item.findOne({
-          where: { article: { [Op.like]: `%${qrData}%` } }
-        });
-        if (item) {
-          itemId = item.id;
-        }
-      }
+      if (!isNaN(qrData)) itemId = parseInt(qrData);
+      else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
+      else item = await Item.findOne({ where: { article: { [Op.like]: `%${qrData}%` } } });
     }
-    
-    if (!item) {
-      item = await Item.findByPk(itemId);
-    }
-    
-    if (!item) {
-      await transaction.rollback();
-      return res.status(404).json({ message: 'Item tidak ditemukan' });
-    }
-    
+    if (!item) item = await Item.findByPk(itemId);
+    if (!item) { await transaction.rollback(); return res.status(404).json({ message: 'Item tidak ditemukan' }); }
     const oldQty = item.qty;
     let finalQty;
-    
-    if (newQty !== undefined) {
-      finalQty = parseInt(newQty);
-    } else {
-      finalQty = oldQty + parseInt(adjustment);
-    }
-    
-    if (finalQty < 0) {
-      await transaction.rollback();
-      return res.status(400).json({ message: 'Quantity cannot be negative' });
-    }
-    
+    if (newQty !== undefined) finalQty = parseInt(newQty);
+    else finalQty = oldQty + parseInt(adjustment);
+    if (finalQty < 0) { await transaction.rollback(); return res.status(400).json({ message: 'Quantity cannot be negative' }); }
     await item.update({ qty: finalQty }, { transaction });
-    
     const history = await QtyHistory.create({
       itemId: item.id,
       article: item.article,
-      oldQty: oldQty,
+      oldQty,
       newQty: finalQty,
       changeAmount: finalQty - oldQty,
       changeType: changeType || (adjustment > 0 ? 'inbound' : adjustment < 0 ? 'outbound' : 'qr_scan'),
       notes: notes || `QR Scan Update: ${newQty !== undefined ? `Set to ${newQty}` : `Adjusted by ${adjustment > 0 ? '+' : ''}${adjustment}`}`,
       updatedBy: updatedBy || 'QR Scanner'
     }, { transaction });
-    
-    // Log the scan update
-    await ScanLog.create({
-      itemId: item.id,
-      article: item.article,
-      scanType: 'qr',
-      scanData: qrData,
-      action: 'update',
-      result: `Qty updated: ${oldQty} → ${finalQty}`,
-      scannedBy: updatedBy || 'QR Scanner'
-    }, { transaction });
-    
+    await ScanLog.create({ itemId: item.id, article: item.article, scanType: 'qr', scanData: qrData, action: 'update', result: `Qty updated: ${oldQty} → ${finalQty}`, scannedBy: updatedBy || 'QR Scanner' }, { transaction });
     await transaction.commit();
-    
-    res.json({
-      success: true,
-      item: item,
-      history: history,
-      message: `Qty updated via QR: ${oldQty} → ${finalQty} (${finalQty - oldQty > 0 ? '+' : ''}${finalQty - oldQty})`
-    });
+    res.json({ success: true, item, history, message: `Qty updated via QR: ${oldQty} → ${finalQty} (${finalQty - oldQty > 0 ? '+' : ''}${finalQty - oldQty})` });
   } catch (err) {
     await transaction.rollback();
     res.status(500).json({ error: err.message });
   }
 });
 
-// 20. GENERATE QR CODE IMAGE
-app.get('/api/items/:id/qrcode', async (req, res) => {
+// 20. GENERATE QR CODE IMAGE (hanya admin)
+app.get('/api/items/:id/qrcode', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const item = await Item.findByPk(req.params.id);
-    if (!item) {
-      return res.status(404).json({ message: 'Item not found' });
-    }
-    
-    // Data untuk QR Code
-    const qrData = JSON.stringify({
-      id: item.id,
-      article: item.article,
-      komponen: item.komponen,
-      location: item.kolom,
-      minStock: item.minStock,
-      timestamp: new Date().toISOString(),
-      action: 'scan_update'
-    });
-    
-    // Generate QR Code sebagai PNG
-    const qrCodeDataURL = await QRCode.toDataURL(qrData, {
-      errorCorrectionLevel: 'H',
-      type: 'image/png',
-      margin: 1,
-      scale: 8,
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF'
-      }
-    });
-    
-    // Potong prefix data URL
+    if (!item) return res.status(404).json({ message: 'Item not found' });
+    const qrData = JSON.stringify({ id: item.id, article: item.article, komponen: item.komponen, location: item.kolom, minStock: item.minStock, timestamp: new Date().toISOString(), action: 'scan_update' });
+    const qrCodeDataURL = await QRCode.toDataURL(qrData, { errorCorrectionLevel: 'H', type: 'image/png', margin: 1, scale: 8, color: { dark: '#000000', light: '#FFFFFF' } });
     const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, "");
-    
-    // Set response sebagai image PNG
     res.set('Content-Type', 'image/png');
     res.send(Buffer.from(base64Data, 'base64'));
   } catch (err) {
@@ -990,202 +646,74 @@ app.get('/api/items/:id/qrcode', async (req, res) => {
   }
 });
 
-// 21. BATCH QR CODE GENERATION
-app.post('/api/qrcode/batch', async (req, res) => {
+// 21. BATCH QR CODE GENERATION (hanya admin)
+app.post('/api/qrcode/batch', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { itemIds } = req.body;
-    
-    if (!Array.isArray(itemIds) || itemIds.length === 0) {
-      return res.status(400).json({ message: 'Item IDs array is required' });
-    }
-    
-    const items = await Item.findAll({
-      where: { id: itemIds },
-      order: [['kolom', 'ASC'], ['article', 'ASC']]
-    });
-    
+    if (!Array.isArray(itemIds) || itemIds.length === 0) return res.status(400).json({ message: 'Item IDs array is required' });
+    const items = await Item.findAll({ where: { id: itemIds }, order: [['kolom', 'ASC'], ['article', 'ASC']] });
     const qrCodes = [];
-    
     for (const item of items) {
-      const qrData = JSON.stringify({
-        id: item.id,
-        article: item.article,
-        komponen: item.komponen,
-        location: item.kolom,
-        timestamp: new Date().toISOString(),
-        action: 'scan_update'
-      });
-      
-      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
-        errorCorrectionLevel: 'H',
-        scale: 6
-      });
-      
-      qrCodes.push({
-        id: item.id,
-        article: item.article,
-        qrData: qrData,
-        qrCodeDataURL: qrCodeDataURL,
-        location: item.kolom,
-        qty: item.qty,
-        minStock: item.minStock
-      });
+      const qrData = JSON.stringify({ id: item.id, article: item.article, komponen: item.komponen, location: item.kolom, timestamp: new Date().toISOString(), action: 'scan_update' });
+      const qrCodeDataURL = await QRCode.toDataURL(qrData, { errorCorrectionLevel: 'H', scale: 6 });
+      qrCodes.push({ id: item.id, article: item.article, qrData, qrCodeDataURL, location: item.kolom, qty: item.qty, minStock: item.minStock });
     }
-    
-    res.json({
-      success: true,
-      count: qrCodes.length,
-      qrCodes: qrCodes
-    });
+    res.json({ success: true, count: qrCodes.length, qrCodes });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 22. GET SCAN LOGS
-app.get('/api/scan-logs', async (req, res) => {
+// 22. GET SCAN LOGS (semua role)
+app.get('/api/scan-logs', isAuthenticated, async (req, res) => {
   try {
     const where = {};
-    
-    if (req.query.startDate) {
-      where.createdAt = { [Op.gte]: new Date(req.query.startDate) };
-    }
-    if (req.query.endDate) {
-      where.createdAt = { ...where.createdAt, [Op.lte]: new Date(req.query.endDate) };
-    }
-    if (req.query.action) {
-      where.action = req.query.action;
-    }
-    
-    const logs = await ScanLog.findAll({
-      where,
-      order: [['createdAt', 'DESC']],
-      limit: 100,
-      include: [{
-        model: Item,
-        attributes: ['article', 'komponen', 'kolom']
-      }]
-    });
+    if (req.query.startDate) where.createdAt = { [Op.gte]: new Date(req.query.startDate) };
+    if (req.query.endDate) where.createdAt = { ...where.createdAt, [Op.lte]: new Date(req.query.endDate) };
+    if (req.query.action) where.action = req.query.action;
+    const logs = await ScanLog.findAll({ where, order: [['createdAt', 'DESC']], limit: 100, include: [{ model: Item, attributes: ['article', 'komponen', 'kolom'] }] });
     res.json(logs);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 23. INVENTORY COUNT VIA QR
-app.post('/api/inventory/count', async (req, res) => {
+// 23. INVENTORY COUNT VIA QR (semua role)
+app.post('/api/inventory/count', isAuthenticated, async (req, res) => {
   const transaction = await sequelize.transaction();
-  
   try {
-    const { scans } = req.body; // Array of { qrData, countedQty }
-    
-    if (!Array.isArray(scans) || scans.length === 0) {
-      await transaction.rollback();
-      return res.status(400).json({ message: 'Scans array is required' });
-    }
-    
-    const results = [];
-    const discrepancies = [];
-    
+    const { scans } = req.body;
+    if (!Array.isArray(scans) || scans.length === 0) { await transaction.rollback(); return res.status(400).json({ message: 'Scans array is required' }); }
+    const results = []; const discrepancies = [];
     for (const scan of scans) {
       const { qrData, countedQty } = scan;
-      
-      // Parse QR data to find item
       let itemId;
-      try {
-        const parsedData = JSON.parse(qrData);
-        itemId = parsedData.id;
-      } catch (err) {
-        if (!isNaN(qrData)) {
-          itemId = parseInt(qrData);
-        } else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) {
-          itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
-        }
+      try { const parsedData = JSON.parse(qrData); itemId = parsedData.id; } catch (err) {
+        if (!isNaN(qrData)) itemId = parseInt(qrData);
+        else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
       }
-      
       const item = await Item.findByPk(itemId);
-      if (!item) {
-        results.push({ qrData, success: false, message: 'Item not found' });
-        continue;
-      }
-      
-      // Check for discrepancy
-      if (item.qty !== countedQty) {
-        discrepancies.push({
-          itemId: item.id,
-          article: item.article,
-          systemQty: item.qty,
-          countedQty: countedQty,
-          difference: countedQty - item.qty
-        });
-      }
-      
-      // Log the count
-      await ScanLog.create({
-        itemId: item.id,
-        article: item.article,
-        scanType: 'qr',
-        scanData: qrData,
-        action: 'check_in',
-        result: `Counted: ${countedQty}, System: ${item.qty}`,
-        scannedBy: req.body.scannedBy || 'Inventory Counter'
-      }, { transaction });
-      
-      results.push({
-        itemId: item.id,
-        article: item.article,
-        systemQty: item.qty,
-        countedQty: countedQty,
-        success: true
-      });
+      if (!item) { results.push({ qrData, success: false, message: 'Item not found' }); continue; }
+      if (item.qty !== countedQty) discrepancies.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty, difference: countedQty - item.qty });
+      await ScanLog.create({ itemId: item.id, article: item.article, scanType: 'qr', scanData: qrData, action: 'check_in', result: `Counted: ${countedQty}, System: ${item.qty}`, scannedBy: req.body.scannedBy || 'Inventory Counter' }, { transaction });
+      results.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty, success: true });
     }
-    
     await transaction.commit();
-    
-    res.json({
-      success: true,
-      totalScanned: results.length,
-      results: results,
-      discrepancies: discrepancies,
-      discrepancyCount: discrepancies.length
-    });
+    res.json({ success: true, totalScanned: results.length, results, discrepancies, discrepancyCount: discrepancies.length });
   } catch (err) {
     await transaction.rollback();
     res.status(500).json({ error: err.message });
   }
 });
 
-// 24. GENERATE QR CODE FOR LABELS (NEW - untuk label)
-app.get('/api/items/:id/label-qrcode', async (req, res) => {
+// 24. GENERATE QR CODE FOR LABELS (hanya admin)
+app.get('/api/items/:id/label-qrcode', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const item = await Item.findByPk(req.params.id);
-    if (!item) {
-      return res.status(404).json({ message: 'Item not found' });
-    }
-    
-    // Data minimal untuk QR Code di label
-    const qrData = JSON.stringify({
-      id: item.id,
-      article: item.article,
-      location: item.kolom || ''
-    });
-    
-    // Generate QR Code sebagai PNG dengan settings untuk label
-    const qrCodeDataURL = await QRCode.toDataURL(qrData, {
-      errorCorrectionLevel: 'M',
-      type: 'image/png',
-      margin: 0, // No margin untuk label
-      scale: 3, // Lebih kecil untuk label
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF'
-      }
-    });
-    
-    // Potong prefix data URL
+    if (!item) return res.status(404).json({ message: 'Item not found' });
+    const qrData = JSON.stringify({ id: item.id, article: item.article, location: item.kolom || '' });
+    const qrCodeDataURL = await QRCode.toDataURL(qrData, { errorCorrectionLevel: 'M', type: 'image/png', margin: 0, scale: 3, color: { dark: '#000000', light: '#FFFFFF' } });
     const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, "");
-    
-    // Set response sebagai image PNG
     res.set('Content-Type', 'image/png');
     res.send(Buffer.from(base64Data, 'base64'));
   } catch (err) {
@@ -1194,36 +722,33 @@ app.get('/api/items/:id/label-qrcode', async (req, res) => {
 });
 
 // Route untuk frontend
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/scanner', (req, res) => res.sendFile(path.join(__dirname, 'public', 'scanner.html')));
 
-app.get('/scanner', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'scanner.html'));
-});
-
-// Error handling middleware
+// Error handling
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  res.status(500).json({ 
-    error: 'Internal server error',
-    message: err.message 
-  });
+  res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
 // 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
+app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
 
-// Start server
+function determineChangeType(changeAmount, specifiedType) {
+  if (specifiedType) return specifiedType;
+  if (changeAmount > 0) return 'inbound';
+  if (changeAmount < 0) return 'outbound';
+  return 'manual';
+}
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`========================================`);
-  console.log(`Warehouse Management System v4.1`);
+  console.log(`Warehouse Management System v5.0`);
   console.log(`QR Code otomatis di label: ENABLED`);
+  console.log(`Role-based access control: ENABLED`);
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Database: ${sequelize.config.storage}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Default users: admin/admin , operator/operator`);
   console.log(`========================================`);
 });
