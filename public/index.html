@@ -684,7 +684,9 @@
                     <p class="font-semibold text-slate-800" x-text="selectedItemForQtyUpdate?.article"></p>
                     <div class="flex justify-between mt-2 text-sm">
                         <span>Stok Saat Ini: <span class="font-bold text-lg" x-text="selectedItemForQtyUpdate?.qty"></span></span>
-                        <span>Min Stock: <span x-text="selectedItemForQtyUpdate?.minStock"></span></span>
+                        <!-- <span>Min Stock: <span x-text="selectedItemForQtyUpdate?.minStock"></span></span> -->
+                        <span>Komponen: <span x-text="selectedItemForQtyUpdate?.komponen || '-'"></span></span>
+   
                     </div>
                 </div>
                 <form @submit.prevent="submitQtyDetailUpdate" class="space-y-4">
