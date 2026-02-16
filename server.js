@@ -923,7 +923,7 @@ function determineChangeType(changeAmount, specifiedType) {
   return 'manual';
 }
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 2616;
 app.listen(PORT, () => {
   console.log(`========================================`);
   console.log(`Warehouse Management System v5.1`);
