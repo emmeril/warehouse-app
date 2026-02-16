@@ -127,6 +127,11 @@
                     <i class="fas fa-qrcode"></i> <span class="hidden sm:inline">Scan QR</span>
                 </button>
                 <template x-if="isAdmin">
+                    <button @click="openAddItemModal" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 text-sm">
+                        <i class="fas fa-plus-circle text-blue-600"></i> <span class="hidden sm:inline">Tambah Item</span>
+                    </button>
+                </template>
+                <template x-if="isAdmin">
                     <button @click="exportToExcel" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 text-sm">
                         <i class="fas fa-file-export text-green-600"></i> <span class="hidden sm:inline">Export</span>
                     </button>
@@ -152,84 +157,6 @@
             
             <!-- ===== KIRI (3/12) ===== -->
             <div class="lg:col-span-4 xl:col-span-3 space-y-6">
-
-                <!-- CARD TAMBAH/EDIT ITEM - ADMIN ONLY -->
-                <template x-if="isAdmin">
-                    <div class="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-5 fade-in">
-                        <div class="flex items-center gap-3 border-b border-slate-100 pb-3 mb-4">
-                            <div class="bg-blue-100 p-2 rounded-lg">
-                                <i class="fas fa-edit text-blue-700"></i>
-                            </div>
-                            <h2 class="font-bold text-slate-800 text-lg" x-text="currentItem.id ? 'Edit Item' : 'Tambah Item Baru'"></h2>
-                        </div>
-                        <form @submit.prevent="saveItem" class="space-y-4">
-                            <input type="hidden" x-model="currentItem.id">
-                            <div>
-                                <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Article <span class="text-red-500">*</span></label>
-                                <input type="text" x-model="currentItem.article" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" required>
-                            </div>
-                            <div>
-                                <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">No. PO</label>
-                                <input type="text" x-model="currentItem.noPo" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" >
-                            </div>
-                            <div>
-                                <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Komponen <span class="text-red-500">*</span></label>
-                                <input type="text" x-model="currentItem.komponen" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" required>
-                            </div>
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Order</label>
-                                    <input type="number" x-model="currentItem.order" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" min="0">
-                                </div>
-                                <div>
-                                    <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Qty <span class="text-red-500">*</span></label>
-                                    <input type="number" x-model="currentItem.qty" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" min="0" required>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Min Stock</label>
-                                    <input type="number" x-model="currentItem.minStock" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" min="0">
-                                </div>
-                                <div>
-                                    <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Lokasi</label>
-                                    <input type="text" x-model="currentItem.kolom" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" list="locationSuggestions">
-                                </div>
-                            </div>
-                            <!-- Kategori -->
-                            <div>
-                                <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Kategori</label>
-                                <div class="flex gap-2">
-                                    <select x-model="currentItem.categoryId" class="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30">
-                                        <option value="">-- Pilih Kategori --</option>
-                                        <template x-for="cat in categories" :key="cat.id">
-                                            <option :value="cat.id" x-text="cat.name"></option>
-                                        </template>
-                                    </select>
-                                    <template x-if="isAdmin">
-                                        <button @click="openCategoryModal" type="button" class="px-3 py-2.5 border border-slate-300 rounded-xl hover:bg-slate-50" title="Kelola Kategori">
-                                            <i class="fas fa-cog"></i>
-                                        </button>
-                                    </template>
-                                </div>
-                            </div>
-                            <datalist id="locationSuggestions">
-                                <template x-for="location in uniqueLocationsList" :key="location">
-                                    <option :value="location"></option>
-                                </template>
-                            </datalist>
-                            <div class="flex gap-3 pt-2">
-                                <button type="submit" class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md shadow-blue-200/50 transition text-sm" :disabled="savingItem">
-                                    <i class="fas fa-save mr-2" :class="{'fa-spinner fa-spin': savingItem}"></i>
-                                    <span x-text="currentItem.id ? 'Update' : 'Simpan'"></span>
-                                </button>
-                                <button type="button" @click="resetForm" class="px-5 py-2.5 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition text-sm">
-                                    <i class="fas fa-undo-alt mr-1"></i> Reset
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </template>
 
                 <!-- CARD FILTER & PENCARIAN (SEMUA ROLE) -->
                 <div class="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-5 fade-in">
@@ -572,6 +499,97 @@
     </div>
 
     <!-- ========== MODAL-MODAL ========== -->
+    <!-- MODAL TAMBAH/EDIT ITEM (ADMIN ONLY) -->
+    <div x-show="showItemModal && isAdmin" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 scale-90"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-90"
+         class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-4"
+         @click.away="showItemModal = false"
+         x-cloak>
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" @click.stop>
+            <div class="sticky top-0 bg-white/80 backdrop-blur-sm flex justify-between items-center p-4 sm:p-6 border-b border-slate-100 rounded-t-3xl">
+                <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-edit text-blue-600"></i> <span x-text="currentItem.id ? 'Edit Item' : 'Tambah Item Baru'"></span>
+                </h3>
+                <button @click="showItemModal = false" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4 sm:p-6">
+                <form @submit.prevent="saveItem" class="space-y-4">
+                    <input type="hidden" x-model="currentItem.id">
+                    <div>
+                        <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Article <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="currentItem.article" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" required>
+                    </div>
+                    <div>
+                        <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">No. PO</label>
+                        <input type="text" x-model="currentItem.noPo" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" >
+                    </div>
+                    <div>
+                        <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Komponen <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="currentItem.komponen" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" required>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Order</label>
+                            <input type="number" x-model="currentItem.order" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" min="0">
+                        </div>
+                        <div>
+                            <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Qty <span class="text-red-500">*</span></label>
+                            <input type="number" x-model="currentItem.qty" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" min="0" required>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Min Stock</label>
+                            <input type="number" x-model="currentItem.minStock" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" min="0">
+                        </div>
+                        <div>
+                            <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Lokasi</label>
+                            <input type="text" x-model="currentItem.kolom" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" list="locationSuggestions">
+                        </div>
+                    </div>
+                    <!-- Kategori -->
+                    <div>
+                        <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Kategori</label>
+                        <div class="flex gap-2">
+                            <select x-model="currentItem.categoryId" class="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30">
+                                <option value="">-- Pilih Kategori --</option>
+                                <template x-for="cat in categories" :key="cat.id">
+                                    <option :value="cat.id" x-text="cat.name"></option>
+                                </template>
+                            </select>
+                            <template x-if="isAdmin">
+                                <button @click="openCategoryModal" type="button" class="px-3 py-2.5 border border-slate-300 rounded-xl hover:bg-slate-50" title="Kelola Kategori">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                    <datalist id="locationSuggestions">
+                        <template x-for="location in uniqueLocationsList" :key="location">
+                            <option :value="location"></option>
+                        </template>
+                    </datalist>
+                    <div class="flex gap-3 pt-2">
+                        <button type="submit" class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md shadow-blue-200/50 transition text-sm" :disabled="savingItem">
+                            <i class="fas fa-save mr-2" :class="{'fa-spinner fa-spin': savingItem}"></i>
+                            <span x-text="currentItem.id ? 'Update' : 'Simpan'"></span>
+                        </button>
+                        <button type="button" @click="resetForm; showItemModal = false;" class="px-5 py-2.5 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition text-sm">
+                            Batal
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- QR SCANNER MODAL (ELEGAN) DENGAN PERBAIKAN MOBILE -->
     <div x-show="showQRScanModal" 
          x-transition:enter="transition ease-out duration-300"

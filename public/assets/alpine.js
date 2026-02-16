@@ -89,6 +89,9 @@ function warehouseApp() {
         newCategory: { name: '', description: '' },
         categoryLoading: false,
 
+        // ========== MODAL ITEM (ADMIN ONLY) ==========
+        showItemModal: false,
+
         // ========== COMPUTED ==========
         get isAuthenticated() {
             return this.user !== null;
@@ -559,6 +562,16 @@ function warehouseApp() {
         },
 
         // ========== CRUD ITEM ==========
+        openAddItemModal() {
+            this.resetForm();
+            this.showItemModal = true;
+        },
+
+        editItem(item) {
+            this.currentItem = { ...item, categoryId: item.categoryId };
+            this.showItemModal = true;
+        },
+
         async saveItem() {
             if (!this.currentItem.article.trim() || !this.currentItem.komponen.trim()) {
                 this.showNotificationMessage('Article dan Komponen harus diisi', 'error');
@@ -580,6 +593,7 @@ function warehouseApp() {
                 });
                 await this.loadItems();
                 this.resetForm();
+                this.showItemModal = false;
                 this.showNotificationMessage(this.currentItem.id ? 'Item berhasil diperbarui' : 'Item baru berhasil ditambahkan', 'success');
             } catch (err) {
                 if (err.message !== 'Unauthorized')
@@ -589,7 +603,6 @@ function warehouseApp() {
             }
         },
 
-        editItem(item) { this.currentItem = { ...item, categoryId: item.categoryId }; document.querySelector('form')?.scrollIntoView({ behavior: 'smooth' }); },
         duplicateItem(item) { this.currentItem = { ...item, id: null, article: item.article + ' (Copy)', categoryId: item.categoryId }; document.querySelector('form')?.scrollIntoView({ behavior: 'smooth' }); },
         resetForm() { this.currentItem = { id: null, article: '', komponen: '', noPo: '', order: 0, qty: 0, minStock: 10, kolom: '', categoryId: null }; },
 
