@@ -136,6 +136,11 @@
                         <i class="fas fa-users-cog text-purple-600"></i> <span class="hidden sm:inline">User</span>
                     </button>
                 </template>
+                <template x-if="isAdmin">
+                    <button @click="openCategoryModal" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 text-sm">
+                        <i class="fas fa-tags text-indigo-600"></i> <span class="hidden sm:inline">Kategori</span>
+                    </button>
+                </template>
                 <button @click="logout" class="bg-red-50 hover:bg-red-100 text-red-700 font-medium py-2 px-4 rounded-xl border border-red-200 flex items-center gap-2 text-sm">
                     <i class="fas fa-sign-out-alt"></i> <span class="hidden sm:inline">Logout</span>
                 </button>
@@ -163,11 +168,10 @@
                                 <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Article <span class="text-red-500">*</span></label>
                                 <input type="text" x-model="currentItem.article" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" required>
                             </div>
-                            <!-- Tambahkan input untuk No. PO di sini -->
-<div>
-    <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">No. PO</label>
-    <input type="text" x-model="currentItem.noPo" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" >
-</div>
+                            <div>
+                                <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">No. PO</label>
+                                <input type="text" x-model="currentItem.noPo" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" >
+                            </div>
                             <div>
                                 <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Komponen <span class="text-red-500">*</span></label>
                                 <input type="text" x-model="currentItem.komponen" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" required>
@@ -190,6 +194,23 @@
                                 <div>
                                     <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Lokasi</label>
                                     <input type="text" x-model="currentItem.kolom" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" list="locationSuggestions">
+                                </div>
+                            </div>
+                            <!-- Kategori -->
+                            <div>
+                                <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Kategori</label>
+                                <div class="flex gap-2">
+                                    <select x-model="currentItem.categoryId" class="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30">
+                                        <option value="">-- Pilih Kategori --</option>
+                                        <template x-for="cat in categories" :key="cat.id">
+                                            <option :value="cat.id" x-text="cat.name"></option>
+                                        </template>
+                                    </select>
+                                    <template x-if="isAdmin">
+                                        <button @click="openCategoryModal" type="button" class="px-3 py-2.5 border border-slate-300 rounded-xl hover:bg-slate-50" title="Kelola Kategori">
+                                            <i class="fas fa-cog"></i>
+                                        </button>
+                                    </template>
                                 </div>
                             </div>
                             <datalist id="locationSuggestions">
@@ -376,6 +397,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer" @click="sortTable('order')">Order <i class="fas fa-sort ml-1 text-slate-400"></i></th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer" @click="sortTable('qty')">Qty <i class="fas fa-sort ml-1 text-slate-400"></i></th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Lokasi</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Kategori</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Aksi</th>
                                 </tr>
@@ -402,6 +424,7 @@
                                         <td class="px-4 py-3 whitespace-nowrap">
                                             <span class="inline-flex px-3 py-1 rounded-full text-sm bg-indigo-50 text-indigo-800 border border-indigo-200" x-text="item.kolom || 'Belum ada'"></span>
                                         </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm" x-text="item.Category?.name || '-'"></td>
                                         <td class="px-4 py-3 whitespace-nowrap">
                                             <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium" :class="getStatusBadgeClass(item.qty, item.minStock)">
                                                 <i :class="getStatusIcon(item.qty, item.minStock)"></i>
@@ -433,7 +456,7 @@
                                     </tr>
                                 </template>
                                 <tr x-show="filteredAndSortedItems.length === 0 && !loading">
-                                    <td colspan="9" class="px-6 py-12 text-center">
+                                    <td colspan="10" class="px-6 py-12 text-center">
                                         <div class="flex flex-col items-center">
                                             <i class="fas fa-box-open text-slate-300 text-5xl mb-3"></i>
                                             <p class="text-slate-500 font-medium">Tidak ada data item</p>
@@ -864,6 +887,7 @@
                         <div><span class="text-indigo-700">Article:</span> <span class="font-semibold" x-text="selectedItemForLabel?.article"></span></div>
                         <div><span class="text-indigo-700">ID:</span> <span class="font-mono" x-text="selectedItemForLabel?.id"></span></div>
                         <div><span class="text-indigo-700">Lokasi:</span> <span x-text="selectedItemForLabel?.kolom || 'Belum diisi'"></span></div>
+                        <div><span class="text-indigo-700">Kategori:</span> <span x-text="selectedItemForLabel?.Category?.name || '-'"></span></div>
                         <div><span class="text-indigo-700">Stok:</span> <span x-text="selectedItemForLabel?.qty"></span></div>
                     </div>
                 </div>
@@ -934,6 +958,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Article</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Komponen</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Lokasi</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Kategori</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-slate-100">
@@ -943,6 +968,7 @@
                                         <td class="px-4 py-2.5 text-sm font-medium" x-text="item.article"></td>
                                         <td class="px-4 py-2.5 text-sm" x-text="item.komponen"></td>
                                         <td class="px-4 py-2.5 text-sm" x-text="item.kolom || '-'"></td>
+                                        <td class="px-4 py-2.5 text-sm" x-text="item.Category?.name || '-'"></td>
                                     </tr>
                                 </template>
                             </tbody>
@@ -1044,6 +1070,66 @@
                                         <td class="px-4 py-3 text-sm" x-text="new Date(userItem.createdAt).toLocaleDateString('id-ID')"></td>
                                         <td class="px-4 py-3 text-sm">
                                             <button @click="deleteUser(userItem.id, userItem.username)" :disabled="userItem.id === user?.id" class="text-red-600 hover:text-red-800 disabled:opacity-40" title="Hapus">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== MODAL MANAJEMEN KATEGORI (ADMIN) ========== -->
+    <div x-show="showCategoryModal && isAdmin" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 scale-90"
+         class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+         @click.away="closeCategoryModal"
+         x-cloak>
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" @click.stop>
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-tags text-indigo-600"></i> Manajemen Kategori
+                </h3>
+                <button @click="closeCategoryModal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">
+                <!-- Form tambah kategori -->
+                <div class="mb-6 p-5 bg-indigo-50 rounded-xl border border-indigo-200">
+                    <h4 class="font-bold text-indigo-800 mb-3">Tambah Kategori Baru</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <input type="text" x-model="newCategory.name" class="px-4 py-2.5 border border-slate-200 rounded-xl" placeholder="Nama Kategori">
+                        <input type="text" x-model="newCategory.description" class="px-4 py-2.5 border border-slate-200 rounded-xl" placeholder="Deskripsi (opsional)">
+                        <button @click="addCategory" :disabled="categoryLoading" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-sm flex items-center justify-center gap-1 disabled:opacity-50">
+                            <i class="fas fa-plus-circle" :class="{'fa-spinner fa-spin': categoryLoading}"></i> Tambah
+                        </button>
+                    </div>
+                </div>
+                <!-- Daftar kategori -->
+                <div>
+                    <h4 class="font-bold text-slate-800 mb-3 flex items-center gap-2"><i class="fas fa-list-ul text-slate-600"></i> Daftar Kategori</h4>
+                    <div class="border border-slate-200 rounded-xl overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-200">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">ID</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Nama</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Deskripsi</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-slate-100">
+                                <template x-for="cat in categories" :key="cat.id">
+                                    <tr>
+                                        <td class="px-4 py-3 text-sm" x-text="cat.id"></td>
+                                        <td class="px-4 py-3 text-sm font-medium" x-text="cat.name"></td>
+                                        <td class="px-4 py-3 text-sm" x-text="cat.description || '-'"></td>
+                                        <td class="px-4 py-3 text-sm">
+                                            <button @click="deleteCategory(cat.id, cat.name)" class="text-red-600 hover:text-red-800" title="Hapus">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </td>
