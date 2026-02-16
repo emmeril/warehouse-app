@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5">
-    <title>Warehouse Management System v5.1 – Pro Edition</title>
+    <title>Warehouse Management System v5.2 – Pro Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -120,18 +120,18 @@
                     <i class="fas fa-user-circle text-slate-500"></i>
                     <span class="font-medium text-slate-700" x-text="user?.username"></span>
                     <span class="px-2 py-0.5 text-xs rounded-full" 
-                          :class="isAdmin ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'"
+                          :class="isAdmin ? 'bg-purple-100 text-purple-800' : (isStaff ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800')"
                           x-text="user?.role"></span>
                 </div>
                 <button @click="openQRScanModal" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-2 px-4 rounded-xl shadow-md shadow-indigo-200 flex items-center gap-2 text-sm">
                     <i class="fas fa-qrcode"></i> <span class="hidden sm:inline">Scan QR</span>
                 </button>
-                <template x-if="isAdmin">
+                <template x-if="canManageItems">
                     <button @click="openAddItemModal" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 text-sm">
                         <i class="fas fa-plus-circle text-blue-600"></i> <span class="hidden sm:inline">Tambah Item</span>
                     </button>
                 </template>
-                <template x-if="isAdmin">
+                <template x-if="canManageItems">
                     <button @click="exportToExcel" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2 px-4 rounded-xl shadow-sm flex items-center gap-2 text-sm">
                         <i class="fas fa-file-export text-green-600"></i> <span class="hidden sm:inline">Export</span>
                     </button>
@@ -304,7 +304,7 @@
                                     class="border font-medium py-2 px-3 rounded-xl text-sm flex items-center">
                                 <i class="fas fa-exclamation-triangle mr-1"></i> Low Stock
                             </button>
-                            <template x-if="isAdmin">
+                            <template x-if="canManageItems">
                                 <button @click="openBulkLabelModal" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center">
                                     <i class="fas fa-tags mr-1"></i> Label Massal
                                 </button>
@@ -363,12 +363,12 @@
                                                 <button @click="openQtyHistoryModal(item)" class="p-1.5 rounded-lg text-purple-600 hover:bg-purple-50" title="Riwayat">
                                                     <i class="fas fa-history"></i>
                                                 </button>
-                                                <template x-if="isAdmin">
+                                                <template x-if="canManageItems">
                                                     <button @click="editItem(item)" class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50" title="Edit">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                 </template>
-                                                <template x-if="isAdmin">
+                                                <template x-if="canManageItems">
                                                     <button @click="openLabelModal(item)" class="p-1.5 rounded-lg text-green-600 hover:bg-green-50" title="Label">
                                                         <i class="fas fa-tag"></i>
                                                     </button>
@@ -486,9 +486,9 @@
         <footer class="mt-8 pt-6 border-t border-slate-200 flex flex-col md:flex-row justify-between items-center text-xs text-slate-500">
             <div class="flex items-center gap-2">
                 <i class="fas fa-warehouse text-slate-400"></i>
-                <span>Warehouse Management System </span>
+                <span>Warehouse Management System v5.2</span>
                 <span class="w-1 h-1 bg-slate-300 rounded-full"></span>
-               
+                <span>Staff role enabled</span>
             </div>
             <div class="flex gap-4 mt-2 md:mt-0">
                 <span><i class="far fa-calendar mr-1"></i><span x-text="new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })"></span></span>
@@ -499,8 +499,8 @@
     </div>
 
     <!-- ========== MODAL-MODAL ========== -->
-    <!-- MODAL TAMBAH/EDIT ITEM (ADMIN ONLY) -->
-    <div x-show="showItemModal && isAdmin" 
+    <!-- MODAL TAMBAH/EDIT ITEM (ADMIN ATAU STAFF) -->
+    <div x-show="showItemModal && canManageItems" 
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 scale-90"
          x-transition:enter-end="opacity-100 scale-100"
@@ -827,7 +827,7 @@
                         <option value="50">50 terakhir</option>
                     </select>
                     <input type="date" x-model="historyFilter.startDate" @change="loadQtyHistory()" class="px-3 py-2 border border-slate-200 rounded-xl text-sm">
-                    <template x-if="isAdmin">
+                    <template x-if="canManageItems">
                         <button @click="exportQtyHistory" class="bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-2 px-4 rounded-xl text-sm flex items-center gap-1">
                             <i class="fas fa-file-export"></i> Export
                         </button>
@@ -887,7 +887,7 @@
     </div>
 
     <!-- ========== MODAL LABEL ITEM (SINGLE) ========== -->
-    <div x-show="showLabelModal && isAdmin" 
+    <div x-show="showLabelModal && canManageItems" 
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 scale-90"
          class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -949,7 +949,7 @@
     </div>
 
     <!-- ========== MODAL BULK LABEL ========== -->
-    <div x-show="showBulkLabelModal && isAdmin" 
+    <div x-show="showBulkLabelModal && canManageItems" 
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 scale-90"
          class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -1060,6 +1060,7 @@
                         <select x-model="newUser.role" class="px-4 py-2.5 border border-slate-200 rounded-xl bg-white">
                             <option value="operator">Operator</option>
                             <option value="admin">Admin</option>
+                            <option value="staff">Staff</option>
                         </select>
                         <button @click="addUser" :disabled="userLoading" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-sm flex items-center justify-center gap-1 disabled:opacity-50">
                             <i class="fas fa-plus-circle" :class="{'fa-spinner fa-spin': userLoading}"></i> Tambah
@@ -1084,7 +1085,7 @@
                                     <tr>
                                         <td class="px-4 py-3 text-sm" x-text="userItem.id"></td>
                                         <td class="px-4 py-3 text-sm font-medium" x-text="userItem.username"></td>
-                                        <td class="px-4 py-3"><span class="px-2.5 py-1 rounded-full text-xs font-semibold" :class="userItem.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'" x-text="userItem.role"></span></td>
+                                        <td class="px-4 py-3"><span class="px-2.5 py-1 rounded-full text-xs font-semibold" :class="userItem.role === 'admin' ? 'bg-purple-100 text-purple-800' : (userItem.role === 'staff' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800')" x-text="userItem.role"></span></td>
                                         <td class="px-4 py-3 text-sm" x-text="new Date(userItem.createdAt).toLocaleDateString('id-ID')"></td>
                                         <td class="px-4 py-3 text-sm">
                                             <button @click="deleteUser(userItem.id, userItem.username)" :disabled="userItem.id === user?.id" class="text-red-600 hover:text-red-800 disabled:opacity-40" title="Hapus">

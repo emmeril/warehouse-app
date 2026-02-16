@@ -1,5 +1,5 @@
 // Warehouse Management App (Express.js + SQLite + Sequelize)
-// Versi 5.1 – Role Admin/Operator + Manajemen User + Kategori Item + Export Excel
+// Versi 5.2 – Role Admin/Operator/Staff + Manajemen Lokasi untuk Staff
 
 const express = require('express');
 const session = require('express-session');
@@ -27,7 +27,7 @@ const sequelize = new Sequelize({
 const User = sequelize.define('User', {
   username: { type: DataTypes.STRING, allowNull: false, unique: true },
   password: { type: DataTypes.STRING, allowNull: false },
-  role: { type: DataTypes.ENUM('admin', 'operator'), defaultValue: 'operator' }
+  role: { type: DataTypes.ENUM('admin', 'operator', 'staff'), defaultValue: 'operator' }
 });
 
 // MODEL CATEGORY
@@ -110,6 +110,11 @@ function isAdmin(req, res, next) {
   res.status(403).json({ error: 'Forbidden - Hanya untuk admin' });
 }
 
+function isAdminOrStaff(req, res, next) {
+  if (req.session.role === 'admin' || req.session.role === 'staff') return next();
+  res.status(403).json({ error: 'Forbidden - Hanya untuk admin atau staff' });
+}
+
 // ==================== SYNC DATABASE & SEED DEFAULT USERS ====================
 sequelize.sync({ alter: true }).then(async () => {
   const adminExists = await User.findOne({ where: { username: 'admin' } });
@@ -123,6 +128,12 @@ sequelize.sync({ alter: true }).then(async () => {
     const hashedPassword = await bcrypt.hash('operator', 10);
     await User.create({ username: 'operator', password: hashedPassword, role: 'operator' });
     console.log('✅ Default operator created (operator/operator)');
+  }
+  const staffExists = await User.findOne({ where: { username: 'staff' } });
+  if (!staffExists) {
+    const hashedPassword = await bcrypt.hash('staff', 10);
+    await User.create({ username: 'staff', password: hashedPassword, role: 'staff' });
+    console.log('✅ Default staff created (staff/staff)');
   }
 });
 
@@ -260,8 +271,8 @@ app.delete('/api/categories/:id', isAuthenticated, isAdmin, async (req, res) => 
 
 // ==================== API ROUTES (semua harus login) ====================
 
-// 1. CREATE ITEM (hanya admin)
-app.post('/api/items', isAuthenticated, isAdmin, async (req, res) => {
+// 1. CREATE ITEM (admin atau staff)
+app.post('/api/items', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const item = await Item.create(req.body);
     if (req.body.qty > 0) {
@@ -339,8 +350,8 @@ app.get('/api/items/:id', isAuthenticated, async (req, res) => {
   }
 });
 
-// 4. UPDATE ITEM (hanya admin)
-app.put('/api/items/:id', isAuthenticated, isAdmin, async (req, res) => {
+// 4. UPDATE ITEM (admin atau staff)
+app.put('/api/items/:id', isAuthenticated, isAdminOrStaff, async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const item = await Item.findByPk(req.params.id);
@@ -521,8 +532,8 @@ app.get('/api/unique-values', isAuthenticated, async (req, res) => {
   }
 });
 
-// 11. BULK OPERATIONS (hanya admin)
-app.post('/api/items/bulk/update-qty', isAuthenticated, isAdmin, async (req, res) => {
+// 11. BULK OPERATIONS (admin atau staff)
+app.post('/api/items/bulk/update-qty', isAuthenticated, isAdminOrStaff, async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { items, changeType, notes } = req.body;
@@ -559,8 +570,8 @@ app.post('/api/items/bulk/update-qty', isAuthenticated, isAdmin, async (req, res
   }
 });
 
-// ========== EXPORT SEMUA ITEM KE EXCEL (hanya admin) ==========
-app.get('/api/export/excel', isAuthenticated, isAdmin, async (req, res) => {
+// ========== EXPORT SEMUA ITEM KE EXCEL (admin atau staff) ==========
+app.get('/api/export/excel', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const items = await Item.findAll({
       order: [['kolom', 'ASC'], ['article', 'ASC']],
@@ -617,8 +628,8 @@ app.get('/api/export/excel', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-// ========== EXPORT RIWAYAT QTY KE EXCEL (hanya admin) ==========
-app.post('/api/export/qty-history', isAuthenticated, isAdmin, async (req, res) => {
+// ========== EXPORT RIWAYAT QTY KE EXCEL (admin atau staff) ==========
+app.post('/api/export/qty-history', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const { itemId, changeType, startDate } = req.body;
     const where = {};
@@ -678,8 +689,8 @@ app.post('/api/export/qty-history', isAuthenticated, isAdmin, async (req, res) =
   }
 });
 
-// 13. IMPORT CSV (hanya admin)
-app.post('/api/import/csv', isAuthenticated, isAdmin, express.text({ type: 'text/csv' }), async (req, res) => {
+// 13. IMPORT CSV (admin atau staff)
+app.post('/api/import/csv', isAuthenticated, isAdminOrStaff, express.text({ type: 'text/csv' }), async (req, res) => {
   try {
     const csvData = req.body;
     const lines = csvData.split('\n');
@@ -721,8 +732,8 @@ app.get('/api/backup', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-// 15. LOCATION MANAGEMENT (hanya admin)
-app.get('/api/locations', isAuthenticated, isAdmin, async (req, res) => {
+// 15. LOCATION MANAGEMENT (admin atau staff)
+app.get('/api/locations', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const locations = await Location.findAll({
       include: [{ model: Item, attributes: ['id', 'article', 'qty'] }],
@@ -734,7 +745,7 @@ app.get('/api/locations', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/locations', isAuthenticated, isAdmin, async (req, res) => {
+app.post('/api/locations', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const location = await Location.create(req.body);
     res.json(location);
@@ -743,8 +754,8 @@ app.post('/api/locations', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-// 16. GENERATE LABEL DATA (hanya admin)
-app.get('/api/items/:id/label-data', isAuthenticated, isAdmin, async (req, res) => {
+// 16. GENERATE LABEL DATA (admin atau staff)
+app.get('/api/items/:id/label-data', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const item = await Item.findByPk(req.params.id, {
       include: [{ model: Category, attributes: ['name'] }]
@@ -759,8 +770,8 @@ app.get('/api/items/:id/label-data', isAuthenticated, isAdmin, async (req, res) 
   }
 });
 
-// 17. GENERATE BULK LABELS (hanya admin)
-app.post('/api/labels/bulk', isAuthenticated, isAdmin, async (req, res) => {
+// 17. GENERATE BULK LABELS (admin atau staff)
+app.post('/api/labels/bulk', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const { itemIds } = req.body;
     if (!Array.isArray(itemIds) || itemIds.length === 0) return res.status(400).json({ message: 'Item IDs array is required' });
@@ -889,8 +900,8 @@ app.post('/api/qr-quick-update', isAuthenticated, async (req, res) => {
   }
 });
 
-// 20. GENERATE QR CODE IMAGE (hanya admin)
-app.get('/api/items/:id/qrcode', isAuthenticated, isAdmin, async (req, res) => {
+// 20. GENERATE QR CODE IMAGE (admin atau staff)
+app.get('/api/items/:id/qrcode', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
@@ -904,8 +915,8 @@ app.get('/api/items/:id/qrcode', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-// 21. BATCH QR CODE GENERATION (hanya admin)
-app.post('/api/qrcode/batch', isAuthenticated, isAdmin, async (req, res) => {
+// 21. BATCH QR CODE GENERATION (admin atau staff)
+app.post('/api/qrcode/batch', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const { itemIds } = req.body;
     if (!Array.isArray(itemIds) || itemIds.length === 0) return res.status(400).json({ message: 'Item IDs array is required' });
@@ -972,8 +983,8 @@ app.post('/api/inventory/count', isAuthenticated, async (req, res) => {
   }
 });
 
-// 24. GENERATE QR CODE FOR LABELS (hanya admin)
-app.get('/api/items/:id/label-qrcode', isAuthenticated, isAdmin, async (req, res) => {
+// 24. GENERATE QR CODE FOR LABELS (admin atau staff)
+app.get('/api/items/:id/label-qrcode', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
@@ -1010,14 +1021,15 @@ function determineChangeType(changeAmount, specifiedType) {
 const PORT = process.env.PORT || 2616;
 app.listen(PORT, () => {
   console.log(`========================================`);
-  console.log(`Warehouse Management System v5.1`);
+  console.log(`Warehouse Management System v5.2`);
   console.log(`QR Code otomatis di label: ENABLED`);
-  console.log(`Role-based access control: ENABLED`);
+  console.log(`Role-based access control: ENABLED (admin/operator/staff)`);
   console.log(`Manajemen User: ENABLED (admin only)`);
   console.log(`Manajemen Kategori: ENABLED (admin only)`);
+  console.log(`Manajemen Lokasi: ENABLED (admin & staff)`);
   console.log(`Fitur Export: EXCEL (ExcelJS)`);
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Database: ${sequelize.config.storage}`);
-  console.log(`Default users: admin/admin , operator/operator`);
+  console.log(`Default users: admin/admin , operator/operator , staff/staff`);
   console.log(`========================================`);
 });

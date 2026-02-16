@@ -99,8 +99,14 @@ function warehouseApp() {
         get isAdmin() {
             return this.user?.role === 'admin';
         },
+        get isStaff() {
+            return this.user?.role === 'staff';
+        },
         get isOperator() {
             return this.user?.role === 'operator';
+        },
+        get canManageItems() {
+            return this.isAdmin || this.isStaff;
         },
         get filteredItems() {
             let filtered = this.items;
@@ -563,11 +569,13 @@ function warehouseApp() {
 
         // ========== CRUD ITEM ==========
         openAddItemModal() {
+            if (!this.canManageItems) return;
             this.resetForm();
             this.showItemModal = true;
         },
 
         editItem(item) {
+            if (!this.canManageItems) return;
             this.currentItem = { ...item, categoryId: item.categoryId };
             this.showItemModal = true;
         },
@@ -607,6 +615,7 @@ function warehouseApp() {
         resetForm() { this.currentItem = { id: null, article: '', komponen: '', noPo: '', order: 0, qty: 0, minStock: 10, kolom: '', categoryId: null }; },
 
         async deleteItem(id) {
+            if (!this.isAdmin) return;
             const item = this.items.find(i => i.id == id);
             if (!item || !confirm(`Hapus item "${item.article}"?`)) return;
             try {
@@ -698,7 +707,7 @@ function warehouseApp() {
 
         // ========== EXPORT RIWAYAT QTY KE EXCEL ==========
         async exportQtyHistory() {
-            if (!this.isAdmin) return;
+            if (!this.canManageItems) return;
             if (!this.selectedItemForHistory || this.qtyHistory.length === 0) {
                 this.showNotificationMessage('Tidak ada data riwayat untuk diexport', 'error');
                 return;
@@ -732,14 +741,13 @@ function warehouseApp() {
 
         // ========== LABEL (hanya admin) ==========
         openLabelModal(item) {
-            if (this.isAdmin) {
-                this.selectedItemForLabel = { ...item };
-                this.labelCopies = 1;
-                this.labelSize = 'medium';
-                this.labelShowQR = true;
-                this.labelShowBarcode = true;
-                this.showLabelModal = true;
-            }
+            if (!this.canManageItems) return;
+            this.selectedItemForLabel = { ...item };
+            this.labelCopies = 1;
+            this.labelSize = 'medium';
+            this.labelShowQR = true;
+            this.labelShowBarcode = true;
+            this.showLabelModal = true;
         },
 
         async printLabels() {
@@ -880,13 +888,12 @@ function warehouseApp() {
         },
 
         openBulkLabelModal() {
-            if (this.isAdmin) {
-                this.selectedItemsForBulkLabel = [];
-                this.bulkLabelCopies = 1;
-                this.bulkLabelFormat = 'standard';
-                this.bulkLabelSize = 'medium';
-                this.showBulkLabelModal = true;
-            }
+            if (!this.canManageItems) return;
+            this.selectedItemsForBulkLabel = [];
+            this.bulkLabelCopies = 1;
+            this.bulkLabelFormat = 'standard';
+            this.bulkLabelSize = 'medium';
+            this.showBulkLabelModal = true;
         },
 
         toggleSelectAllBulkLabels() {
@@ -1042,7 +1049,7 @@ function warehouseApp() {
 
         // ========== EXPORT SEMUA ITEM KE EXCEL ==========
         async exportToExcel() {
-            if (!this.isAdmin) return;
+            if (!this.canManageItems) return;
             if (this.items.length === 0) { this.showNotificationMessage('Tidak ada data', 'error'); return; }
             try {
                 const res = await this.fetchWithAuth('/api/export/excel');
