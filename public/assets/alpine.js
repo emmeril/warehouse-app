@@ -617,40 +617,38 @@ function warehouseApp() {
             return this.qtyHistory.filter(h => h.changeType === type).length;
         },
 
+        // ========== EXPORT RIWAYAT QTY KE EXCEL ==========
         async exportQtyHistory() {
             if (!this.isAdmin) return;
             if (!this.selectedItemForHistory || this.qtyHistory.length === 0) {
                 this.showNotificationMessage('Tidak ada data riwayat untuk diexport', 'error');
                 return;
             }
-            const headers = ['Tanggal', 'Article', 'Qty Lama', 'Qty Baru', 'Perubahan', 'Tipe', 'Catatan', 'Oleh'];
-            const csvData = [
-                headers.join(','),
-                ...this.qtyHistory.map(history => [
-                    this.formatDateTime(history.createdAt),
-                    `"${history.article}"`,
-                    history.oldQty,
-                    history.newQty,
-                    history.changeAmount,
-                    history.changeType,
-                    `"${history.notes || ''}"`,
-                    `"${history.updatedBy || ''}"`
-                ].join(','))
-            ].join('\n');
-            this.downloadCSV(csvData, `qty-history-${this.selectedItemForHistory.article}-${new Date().toISOString().split('T')[0]}.csv`);
-            this.showNotificationMessage('Riwayat berhasil diexport', 'success');
-        },
 
-        downloadCSV(csvData, filename) {
-            const blob = new Blob([csvData], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
+            try {
+                const response = await this.fetchWithAuth('/api/export/qty-history', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        itemId: this.selectedItemForHistory.id,
+                        changeType: this.historyFilter.changeType || undefined,
+                        startDate: this.historyFilter.startDate || undefined
+                    })
+                });
+
+                if (!response.ok) throw new Error('Gagal export riwayat');
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `qty-history-${this.selectedItemForHistory.article}-${new Date().toISOString().split('T')[0]}.xlsx`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                this.showNotificationMessage('Riwayat berhasil diexport', 'success');
+            } catch (err) {
+                this.showNotificationMessage('Gagal export: ' + err.message, 'error');
+            }
         },
 
         // ========== LABEL (hanya admin) ==========
@@ -934,6 +932,23 @@ function warehouseApp() {
             }
         },
 
+        // ========== EXPORT SEMUA ITEM KE EXCEL ==========
+        async exportToExcel() {
+            if (!this.isAdmin) return;
+            if (this.items.length === 0) { this.showNotificationMessage('Tidak ada data', 'error'); return; }
+            try {
+                const res = await this.fetchWithAuth('/api/export/excel');
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `warehouse-export-${new Date().toISOString().split('T')[0]}.xlsx`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                this.showNotificationMessage('Export berhasil', 'success');
+            } catch (err) {}
+        },
+
         // ========== FILTER & UTILITY ==========
         applyFilter() { this.currentPage = 1; this.loadItems(); },
         clearFilter() {
@@ -969,22 +984,6 @@ function warehouseApp() {
             if (qty <= minStock) return 'Stok Rendah';
             if (qty <= minStock * 2) return 'Stok Sedang';
             return 'Stok Aman';
-        },
-
-        async exportToCSV() {
-            if (!this.isAdmin) return;
-            if (this.items.length === 0) { this.showNotificationMessage('Tidak ada data', 'error'); return; }
-            try {
-                const res = await this.fetchWithAuth('/api/export/csv');
-                const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `warehouse-export-${new Date().toISOString().split('T')[0]}.csv`;
-                a.click();
-                window.URL.revokeObjectURL(url);
-                this.showNotificationMessage('Export berhasil', 'success');
-            } catch (err) {}
         },
 
         openPrintView() {

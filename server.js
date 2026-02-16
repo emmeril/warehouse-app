@@ -1,5 +1,6 @@
 // Warehouse Management App (Express.js + SQLite + Sequelize)
 // Versi 5.1 – Role Admin/Operator + Manajemen User + Auto-fill UpdatedBy
+// Fitur export menggunakan ExcelJS
 
 const express = require('express');
 const session = require('express-session');
@@ -9,6 +10,7 @@ const { Sequelize, DataTypes, Op } = require('sequelize');
 const path = require('path');
 const QRCode = require('qrcode');
 const SQLiteStore = require('connect-sqlite3')(session);
+const ExcelJS = require('exceljs'); // <-- Tambahkan ini
 
 const app = express();
 app.use(bodyParser.json());
@@ -488,24 +490,123 @@ app.post('/api/items/bulk/update-qty', isAuthenticated, isAdmin, async (req, res
   }
 });
 
-// 12. EXPORT CSV (hanya admin)
-app.get('/api/export/csv', isAuthenticated, isAdmin, async (req, res) => {
+// ========== EXPORT SEMUA ITEM KE EXCEL (hanya admin) ==========
+app.get('/api/export/excel', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const items = await Item.findAll({ order: [['kolom', 'ASC'], ['article', 'ASC']] });
-    const csvHeader = 'ID,Article,Komponen,No PO,Order,Qty,Min Stock,Lokasi,Created At,Updated At\n';
-    const csvRows = items.map(item => 
-      `${item.id},"${item.article}","${item.komponen}","${item.noPo || ''}",${item.order},${item.qty},${item.minStock},"${item.kolom || ''}","${item.createdAt}","${item.updatedAt}"`
-    ).join('\n');
-    const csvContent = csvHeader + csvRows;
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=warehouse-export-${new Date().toISOString().split('T')[0]}.csv`);
-    res.send(csvContent);
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Warehouse Items');
+
+    worksheet.columns = [
+      { header: 'ID', key: 'id', width: 10 },
+      { header: 'Article', key: 'article', width: 30 },
+      { header: 'Komponen', key: 'komponen', width: 20 },
+      { header: 'No PO', key: 'noPo', width: 15 },
+      { header: 'Order', key: 'order', width: 10 },
+      { header: 'Qty', key: 'qty', width: 10 },
+      { header: 'Min Stock', key: 'minStock', width: 10 },
+      { header: 'Lokasi', key: 'kolom', width: 15 },
+      { header: 'Created At', key: 'createdAt', width: 20 },
+      { header: 'Updated At', key: 'updatedAt', width: 20 }
+    ];
+
+    items.forEach(item => {
+      worksheet.addRow({
+        id: item.id,
+        article: item.article,
+        komponen: item.komponen,
+        noPo: item.noPo || '',
+        order: item.order,
+        qty: item.qty,
+        minStock: item.minStock,
+        kolom: item.kolom || '',
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt
+      });
+    });
+
+    // Styling header
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=warehouse-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 13. IMPORT CSV (hanya admin)
+// ========== EXPORT RIWAYAT QTY KE EXCEL (hanya admin) ==========
+app.post('/api/export/qty-history', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { itemId, changeType, startDate } = req.body;
+    const where = {};
+    if (itemId) where.itemId = itemId;
+    if (changeType) where.changeType = changeType;
+    if (startDate) {
+      where.createdAt = { [Op.gte]: new Date(startDate) };
+    }
+
+    const histories = await QtyHistory.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      include: [{ model: Item, attributes: ['article'] }]
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Qty History');
+
+    worksheet.columns = [
+      { header: 'Tanggal', key: 'createdAt', width: 20 },
+      { header: 'Article', key: 'article', width: 30 },
+      { header: 'Qty Lama', key: 'oldQty', width: 10 },
+      { header: 'Qty Baru', key: 'newQty', width: 10 },
+      { header: 'Perubahan', key: 'changeAmount', width: 12 },
+      { header: 'Tipe', key: 'changeType', width: 15 },
+      { header: 'Catatan', key: 'notes', width: 40 },
+      { header: 'Oleh', key: 'updatedBy', width: 20 }
+    ];
+
+    histories.forEach(h => {
+      worksheet.addRow({
+        createdAt: new Date(h.createdAt).toLocaleString('id-ID'),
+        article: h.article,
+        oldQty: h.oldQty,
+        newQty: h.newQty,
+        changeAmount: h.changeAmount,
+        changeType: h.changeType,
+        notes: h.notes || '',
+        updatedBy: h.updatedBy
+      });
+    });
+
+    // Styling header
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=qty-history-${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 13. IMPORT CSV (hanya admin) – tetap ada, tidak diubah
 app.post('/api/import/csv', isAuthenticated, isAdmin, express.text({ type: 'text/csv' }), async (req, res) => {
   try {
     const csvData = req.body;
@@ -829,6 +930,7 @@ app.listen(PORT, () => {
   console.log(`QR Code otomatis di label: ENABLED`);
   console.log(`Role-based access control: ENABLED`);
   console.log(`Manajemen User: ENABLED (admin only)`);
+  console.log(`Fitur Export: EXCEL (ExcelJS)`);
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Database: ${sequelize.config.storage}`);
   console.log(`Default users: admin/admin , operator/operator`);

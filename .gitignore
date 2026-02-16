@@ -1,3 +1,5 @@
 /node_modules
 warehouse.db  
 sessions.db  
+pnpm-workspace.yaml
+pnpm-lock.yaml

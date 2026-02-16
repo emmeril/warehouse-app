@@ -11,9 +11,13 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "body-parser": "^2.2.2",
+    "connect-sqlite3": "^0.9.16",
     "cors": "^2.8.6",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
+    "express-session": "^1.19.0",
     "qrcode": "^1.5.4",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7"
