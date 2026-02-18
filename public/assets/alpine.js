@@ -809,6 +809,7 @@ async printLabels() {
                             <p style="margin: 0.03in 0; color: #555;">${labelData.komponen}</p>
                             <p style="margin: 0.02in 0;">ID: ${labelData.id} | Lokasi: ${labelData.kolom || '-'}</p>
                             <p style="margin: 0.02in 0;">Kategori: ${labelData.category || '-'}</p>
+                             <p style="margin: 0.02in 0;">Tanggal: ${new Date().toLocaleDateString('id-ID')}</p>
                             <p style="margin: 0.02in 0;">PO: ${labelData.noPo || '-'} | Stok: ${labelData.qty} | Min: ${labelData.minStock}</p>
                         </div>
                         <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
@@ -824,16 +825,9 @@ async printLabels() {
                             </div>
                             ` : ''}
                             ${this.labelShowBarcode ? `
-                            <div style="margin: 0.05in 0; text-align: center;">
-                                <div style="display: inline-block; padding: 0.03in 0.1in; border: 1px solid #000; letter-spacing: 0.1em; font-family: 'Courier New', monospace; font-weight: bold;">
-                                    ${labelData.id.toString().padStart(6, '0')}
-                                </div>
-                                <p style="font-size: 0.7em; margin: 0.02in 0; color: #666;">ID: ${labelData.id}</p>
-                            </div>
+                          
                             ` : ''}
-                            <p style="color: #666; margin-top: 0.05in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
-                                WMS v5.1 | ${new Date().toLocaleDateString('id-ID')}
-                            </p>
+                      
                         </div>
                     </div>
                 </div>
@@ -968,6 +962,7 @@ async printBulkLabels() {
                                 <p style="margin: 0.03in 0; color: #555;">${label.komponen}</p>
                                 <p style="margin: 0.02in 0;">ID: ${label.id} | Lokasi: ${label.kolom || '-'}</p>
                                 <p style="margin: 0.02in 0;">Kategori: ${label.category || '-'}</p>
+                                <p style="margin: 0.02in 0;">Tanggal: ${new Date(label.timestamp || Date.now()).toLocaleDateString('id-ID')}</p>
                                 <p style="margin: 0.02in 0;">PO: ${label.noPo || '-'} | Stok: ${label.qty} | Min: ${label.minStock}</p>
                             </div>
                             <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
@@ -983,16 +978,9 @@ async printBulkLabels() {
                                 </div>
                                 ` : ''}
                                 ${this.bulkLabelFormat === 'detailed' ? `
-                                <div style="margin: 0.05in 0; text-align: center;">
-                                    <div style="display: inline-block; padding: 0.03in 0.1in; border: 1px solid #000; letter-spacing: 0.1em; font-family: 'Courier New', monospace; font-weight: bold;">
-                                        ${label.id.toString().padStart(6, '0')}
-                                    </div>
-                                    <p style="font-size: 0.7em; margin: 0.02in 0; color: #666;">ID: ${label.id}</p>
-                                </div>
+                               
                                 ` : ''}
-                                <p style="color: #666; margin-top: 0.05in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
-                                    WMS v5.1 | ${new Date(label.timestamp || Date.now()).toLocaleDateString('id-ID')}
-                                </p>
+                             
                             </div>
                         </div>
                     </div>
