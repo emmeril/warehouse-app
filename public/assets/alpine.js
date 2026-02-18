@@ -1,3 +1,5 @@
+// MODIFIKASI: tambahkan penanganan categoryId di user, dan sesuaikan form item untuk staff
+
 function warehouseApp() {
     return {
         // ========== AUTH STATE ==========
@@ -88,7 +90,7 @@ function warehouseApp() {
         // ========== USER MANAGEMENT (ADMIN ONLY) ==========
         showUserModal: false,
         users: [],
-        newUser: { username: '', password: '', role: 'operator' },
+        newUser: { username: '', password: '', role: 'operator', categoryId: null }, // MODIFIKASI: tambah categoryId
         userLoading: false,
         userError: '',
 
@@ -273,7 +275,7 @@ function warehouseApp() {
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Login gagal');
-                this.user = data.user;
+                this.user = data.user; // user sekarang punya categoryId
                 this.loginData = { username: '', password: '' };
                 this.showLoginModal = false;
                 await this.loadInitialData();
@@ -333,7 +335,7 @@ function warehouseApp() {
                 const res = await this.fetchWithAuth('/api/users', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(this.newUser)
+                    body: JSON.stringify(this.newUser) // kirim categoryId
                 });
                 if (!res.ok) {
                     const err = await res.json();
@@ -341,7 +343,7 @@ function warehouseApp() {
                 }
                 const user = await res.json();
                 this.users.push(user);
-                this.newUser = { username: '', password: '', role: 'operator' };
+                this.newUser = { username: '', password: '', role: 'operator', categoryId: null };
                 this.showNotificationMessage(`User ${user.username} berhasil ditambahkan`, 'success');
             } catch (err) {
                 if (err.message !== 'Unauthorized')
@@ -376,7 +378,7 @@ function warehouseApp() {
         closeUserModal() {
             this.showUserModal = false;
             this.users = [];
-            this.newUser = { username: '', password: '', role: 'operator' };
+            this.newUser = { username: '', password: '', role: 'operator', categoryId: null };
         },
 
         // ========== CATEGORY MANAGEMENT ==========
@@ -498,6 +500,7 @@ function warehouseApp() {
         },
 
         // ========== QR SCANNER ==========
+        // ... (tidak berubah, tetap sama) ...
         async checkCameraAvailability() {
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
@@ -633,7 +636,7 @@ function warehouseApp() {
         // ========== CRUD ITEM ==========
         openAddItemModal() {
             if (!this.canManageItems) return;
-            this.resetForm();
+            this.resetForm(); // resetForm sudah menyesuaikan categoryId
             this.showItemModal = true;
         },
 
@@ -675,7 +678,21 @@ function warehouseApp() {
         },
 
         duplicateItem(item) { this.currentItem = { ...item, id: null, article: item.article + ' (Copy)', categoryId: item.categoryId }; document.querySelector('form')?.scrollIntoView({ behavior: 'smooth' }); },
-        resetForm() { this.currentItem = { id: null, article: '', komponen: '', noPo: '', order: 0, qty: 0, minStock: 10, kolom: '', categoryId: null }; },
+
+        // MODIFIKASI: resetForm dengan categoryId default untuk staff
+        resetForm() {
+            this.currentItem = { 
+                id: null, 
+                article: '', 
+                komponen: '', 
+                noPo: '', 
+                order: 0, 
+                qty: 0, 
+                minStock: 10, 
+                kolom: '', 
+                categoryId: this.isAdmin ? null : (this.user?.categoryId || null) 
+            };
+        },
 
         async deleteItem(id) {
             if (!this.isAdmin) return;
@@ -692,6 +709,7 @@ function warehouseApp() {
         },
 
         // ========== DETAIL UPDATE QTY ==========
+        // ... (tidak berubah signifikan, tapi pastikan akses dicek di server) ...
         openQtyDetailModal(item) {
             this.selectedItemForQtyUpdate = { ...item };
             this.qtyUpdateDetail = { method: 'adjust', newQty: item.qty, adjustment: 0, changeType: 'adjustment', notes: '' };
@@ -802,7 +820,7 @@ function warehouseApp() {
             }
         },
 
-        // ========== LABEL (hanya admin) ==========
+        // ========== LABEL (hanya admin/staff) ==========
         openLabelModal(item) {
             if (!this.canManageItems) return;
             this.selectedItemForLabel = { ...item };
@@ -888,9 +906,8 @@ function warehouseApp() {
                                     </div>
                                     ` : ''}
                                     ${this.labelShowBarcode ? `
-                                  
+                                    <!-- Barcode bisa ditambahkan jika diperlukan -->
                                     ` : ''}
-                              
                                 </div>
                             </div>
                         </div>
@@ -931,7 +948,7 @@ function warehouseApp() {
                             </div>
                             <div class="label-container">${labelsHTML}</div>
                             <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
-                                <p>Warehouse Management System v5.1 - Label</p>
+                                <p>Warehouse Management System v5.3 - Label</p>
                                 <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
                             </div>
                             <script>
@@ -1041,9 +1058,8 @@ function warehouseApp() {
                                         </div>
                                         ` : ''}
                                         ${this.bulkLabelFormat === 'detailed' ? `
-                                       
+                                        <!-- Barcode opsional -->
                                         ` : ''}
-                                     
                                     </div>
                                 </div>
                             </div>
@@ -1086,7 +1102,7 @@ function warehouseApp() {
                             </div>
                             <div class="label-container">${labelsHTML}</div>
                             <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
-                                <p>Warehouse Management System v5.1 - Label Massal</p>
+                                <p>Warehouse Management System v5.3 - Label Massal</p>
                                 <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
                             </div>
                             <script>
@@ -1127,10 +1143,6 @@ function warehouseApp() {
         // ========== FILTER & UTILITY ==========
         applyFilter() {
             this.currentPage = 1;
-            // Tidak perlu panggil loadItems karena filter client-side,
-            // namun jika ingin mengambil data baru dari server (misal filter kolom/komponen/search)
-            // loadItems tetap dipanggil karena di dalamnya sudah menggunakan filter.kolom, dll.
-            // Tapi karena kita sudah client-side, kita biarkan loadItems untuk memuat ulang data dari server.
             this.loadItems();
         },
 

@@ -195,24 +195,24 @@
                             </div>
                         </div>
 
-                                <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-slate-600 text-sm font-medium mb-1.5">Kategori</label>
-                                  <select x-model="filter.categoryId" @change="applyFilter" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/30 bg-white">
-                                <option value="">Semua</option>
-                                <template x-for="cat in categories" :key="cat.id">
-                                    <option :value="cat.id" x-text="cat.name"></option>
-                                </template>
-                            </select>
+                                <select x-model="filter.categoryId" @change="applyFilter" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/30 bg-white">
+                                    <option value="">Semua</option>
+                                    <template x-for="cat in categories" :key="cat.id">
+                                        <option :value="cat.id" x-text="cat.name"></option>
+                                    </template>
+                                </select>
                             </div>
                             <div>
                                 <label class="block text-slate-600 text-sm font-medium mb-1.5">Status Stok</label>
-                                   <select x-model="filter.stockStatus" @change="applyFilter" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/30 bg-white">
-                                <option value="">Semua</option>
-                                <option value="low">Stok Rendah (≤ Min)</option>
-                                <option value="medium">Stok Sedang (Min – 2xMin)</option>
-                                <option value="safe">Stok Aman (> 2xMin)</option>
-                            </select>
+                                <select x-model="filter.stockStatus" @change="applyFilter" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/30 bg-white">
+                                    <option value="">Semua</option>
+                                    <option value="low">Stok Rendah (≤ Min)</option>
+                                    <option value="medium">Stok Sedang (Min – 2xMin)</option>
+                                    <option value="safe">Stok Aman (> 2xMin)</option>
+                                </select>
                             </div>
                         </div>
 
@@ -509,7 +509,6 @@
             <div class="flex items-center gap-2">
                 <i class="fas fa-warehouse text-slate-400"></i>
                 <span>Warehouse Management System</span>
-               
             </div>
             <div class="flex gap-4 mt-2 md:mt-0">
                 <span><i class="far fa-calendar mr-1"></i><span x-text="new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })"></span></span>
@@ -575,16 +574,23 @@
                             <input type="text" x-model="currentItem.kolom" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30" list="locationSuggestions">
                         </div>
                     </div>
-                    <!-- Kategori -->
+                    <!-- MODIFIKASI: Kategori dengan tampilan berbeda untuk admin dan non-admin -->
                     <div>
                         <label class="block text-slate-600 font-medium text-xs uppercase tracking-wider mb-1">Kategori</label>
                         <div class="flex gap-2">
-                            <select x-model="currentItem.categoryId" class="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30">
-                                <option value="">-- Pilih Kategori --</option>
-                                <template x-for="cat in categories" :key="cat.id">
-                                    <option :value="cat.id" x-text="cat.name"></option>
-                                </template>
-                            </select>
+                            <template x-if="isAdmin">
+                                <select x-model="currentItem.categoryId" class="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30">
+                                    <option value="">-- Pilih Kategori --</option>
+                                    <template x-for="cat in categories" :key="cat.id">
+                                        <option :value="cat.id" x-text="cat.name"></option>
+                                    </template>
+                                </select>
+                            </template>
+                            <template x-if="!isAdmin">
+                                <div class="flex-1 px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700">
+                                    <span x-text="categories.find(c => c.id == user?.categoryId)?.name || 'Kategori default'"></span>
+                                </div>
+                            </template>
                             <template x-if="isAdmin">
                                 <button @click="openCategoryModal" type="button" class="px-3 py-2.5 border border-slate-300 rounded-xl hover:bg-slate-50" title="Kelola Kategori">
                                     <i class="fas fa-cog"></i>
@@ -753,7 +759,6 @@
                     <div class="flex justify-between mt-2 text-sm">
                         <span>Stok Saat Ini: <span class="font-bold text-lg" x-text="selectedItemForQtyUpdate?.qty"></span></span>
                         <span>Komponen: <span x-text="selectedItemForQtyUpdate?.komponen || '-'"></span></span>
-   
                     </div>
                 </div>
                 <form @submit.prevent="submitQtyDetailUpdate" class="space-y-4">
@@ -907,7 +912,7 @@
         </div>
     </div>
 
-    <!-- ========== MODAL LABEL ITEM (SINGLE) - DIUBAH: UKURAN BESAR DAN DETAIL LENGKAP ========== -->
+    <!-- ========== MODAL LABEL ITEM (SINGLE) ========== -->
     <div x-show="showLabelModal && canManageItems" 
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 scale-90"
@@ -940,7 +945,9 @@
                 </div>
 
                 <!-- Informasi ukuran & format tetap (large + detail) -->
-             
+                <div class="p-3 bg-slate-50 rounded-xl text-xs text-slate-600">
+                    <i class="fas fa-info-circle mr-1"></i> Label akan dicetak dengan ukuran besar dan QR Code.
+                </div>
 
                 <!-- Preview sederhana (ukuran large) -->
                 <div class="mt-2 p-4 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50/50">
@@ -951,7 +958,6 @@
                             <p class="truncate w-full text-center text-slate-600" x-text="selectedItemForLabel?.kolom || 'LOKASI'"></p>
                             <p class="text-xs mt-1" x-text="'ID: '+selectedItemForLabel?.id"></p>
                             <div class="mt-1"><div class="w-6 h-6 bg-slate-200 flex items-center justify-center rounded"><i class="fas fa-qrcode text-slate-600 text-xs"></i></div></div>
-                            <div class="mt-1 text-[8px] border border-slate-300 px-2">123456</div>
                         </div>
                     </div>
                 </div>
@@ -966,7 +972,7 @@
         </div>
     </div>
 
-    <!-- ========== MODAL BULK LABEL - DIUBAH: UKURAN BESAR DAN FORMAT DETAILED ========== -->
+    <!-- ========== MODAL BULK LABEL ========== -->
     <div x-show="showBulkLabelModal && canManageItems" 
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 scale-90"
@@ -1029,7 +1035,9 @@
                     </div>
 
                     <!-- Informasi tetap: ukuran besar & format detailed -->
-               
+                    <div class="p-3 bg-slate-50 rounded-xl text-xs text-slate-600">
+                        <i class="fas fa-info-circle mr-1"></i> Label akan dicetak dengan ukuran besar, format detailed, dan QR Code.
+                    </div>
 
                     <div class="p-4 bg-purple-50 rounded-xl border border-purple-200">
                         <p class="font-semibold text-purple-800 mb-1">Ringkasan</p>
@@ -1044,14 +1052,14 @@
         </div>
     </div>
 
-    <!-- ========== MODAL MANAJEMEN USER (ADMIN) ========== -->
+    <!-- ========== MODAL MANAJEMEN USER (ADMIN) - DENGAN KATEGORI ========== -->
     <div x-show="showUserModal && isAdmin" 
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 scale-90"
          class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
          @click.away="closeUserModal"
          x-cloak>
-        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col" @click.stop>
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[80vh] flex flex-col" @click.stop>
             <div class="p-6 border-b border-slate-100 flex justify-between items-center">
                 <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
                     <i class="fas fa-users-cog text-purple-600"></i> Manajemen User
@@ -1059,9 +1067,10 @@
                 <button @click="closeUserModal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-6 overflow-y-auto flex-1">
+                <!-- MODIFIKASI: Form tambah user dengan dropdown kategori -->
                 <div class="mb-6 p-5 bg-purple-50 rounded-xl border border-purple-200">
                     <h4 class="font-bold text-purple-800 mb-3">Tambah User Baru</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
                         <input type="text" x-model="newUser.username" class="px-4 py-2.5 border border-slate-200 rounded-xl" placeholder="Username">
                         <input type="password" x-model="newUser.password" class="px-4 py-2.5 border border-slate-200 rounded-xl" placeholder="Password">
                         <select x-model="newUser.role" class="px-4 py-2.5 border border-slate-200 rounded-xl bg-white">
@@ -1069,11 +1078,18 @@
                             <option value="admin">Admin</option>
                             <option value="staff">Staff</option>
                         </select>
+                        <select x-model="newUser.categoryId" class="px-4 py-2.5 border border-slate-200 rounded-xl bg-white">
+                            <option value="">-- Tanpa Kategori (Akses semua) --</option>
+                            <template x-for="cat in categories" :key="cat.id">
+                                <option :value="cat.id" x-text="cat.name"></option>
+                            </template>
+                        </select>
                         <button @click="addUser" :disabled="userLoading" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-sm flex items-center justify-center gap-1 disabled:opacity-50">
                             <i class="fas fa-plus-circle" :class="{'fa-spinner fa-spin': userLoading}"></i> Tambah
                         </button>
                     </div>
                 </div>
+                <!-- MODIFIKASI: Daftar user dengan kolom kategori -->
                 <div>
                     <h4 class="font-bold text-slate-800 mb-3 flex items-center gap-2"><i class="fas fa-list-ul text-slate-600"></i> Daftar User</h4>
                     <div class="border border-slate-200 rounded-xl overflow-x-auto">
@@ -1083,6 +1099,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">ID</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Username</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Role</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Kategori</th> <!-- baru -->
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Dibuat</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Aksi</th>
                                 </tr>
@@ -1093,6 +1110,7 @@
                                         <td class="px-4 py-3 text-sm" x-text="userItem.id"></td>
                                         <td class="px-4 py-3 text-sm font-medium" x-text="userItem.username"></td>
                                         <td class="px-4 py-3"><span class="px-2.5 py-1 rounded-full text-xs font-semibold" :class="userItem.role === 'admin' ? 'bg-purple-100 text-purple-800' : (userItem.role === 'staff' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800')" x-text="userItem.role"></span></td>
+                                        <td class="px-4 py-3 text-sm" x-text="userItem.Category?.name || '-'"></td> <!-- baru -->
                                         <td class="px-4 py-3 text-sm" x-text="new Date(userItem.createdAt).toLocaleDateString('id-ID')"></td>
                                         <td class="px-4 py-3 text-sm">
                                             <button @click="deleteUser(userItem.id, userItem.username)" :disabled="userItem.id === user?.id" class="text-red-600 hover:text-red-800 disabled:opacity-40" title="Hapus">
@@ -1206,6 +1224,7 @@
         </div>
     </div>
 
+    <!-- Load file Alpine.js yang sudah dimodifikasi -->
     <script src="./assets/alpine.js"></script>
 </body>
 </html>
