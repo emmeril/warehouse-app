@@ -740,161 +740,166 @@ function warehouseApp() {
         },
 
         // ========== LABEL (hanya admin) ==========
-        openLabelModal(item) {
-            if (!this.canManageItems) return;
-            this.selectedItemForLabel = { ...item };
-            this.labelCopies = 1;
-            this.labelSize = 'medium';
-            this.labelShowQR = true;
-            this.labelShowBarcode = true;
-            this.showLabelModal = true;
-        },
+openLabelModal(item) {
+    if (!this.canManageItems) return;
+    this.selectedItemForLabel = { ...item };
+    this.labelCopies = 1;
+    this.labelSize = 'large';          // dipaksa besar
+    this.labelShowQR = true;           // QR selalu tampil
+    this.labelShowBarcode = true;      // barcode selalu tampil
+    this.showLabelModal = true;
+},
 
-        async printLabels() {
-            if (!this.selectedItemForLabel) return;
-            const item = this.selectedItemForLabel;
-            try {
-                const response = await this.fetchWithAuth('/api/labels/bulk', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ itemIds: [item.id] })
-                });
-                if (!response.ok) throw new Error('Gagal mengambil data label');
-                const result = await response.json();
-                if (!result.success || !result.labels || result.labels.length === 0)
-                    throw new Error('Data label tidak valid');
+async printLabels() {
+    if (!this.selectedItemForLabel) return;
+    // paksa ke ukuran besar dan detail lengkap
+    this.labelSize = 'large';
+    this.labelShowQR = true;
+    this.labelShowBarcode = true;
 
-                const labelData = result.labels[0];
+    const item = this.selectedItemForLabel;
+    try {
+        const response = await this.fetchWithAuth('/api/labels/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: [item.id] })
+        });
+        if (!response.ok) throw new Error('Gagal mengambil data label');
+        const result = await response.json();
+        if (!result.success || !result.labels || result.labels.length === 0)
+            throw new Error('Data label tidak valid');
 
-                const labelSize = {
-                    small: { width: '2in', height: '1in', fontSize: '8px' },
-                    medium: { width: '3in', height: '2in', fontSize: '10px' },
-                    large: { width: '4in', height: '3in', fontSize: '12px' }
-                }[this.labelSize];
+        const labelData = result.labels[0];
 
-                const qrSize = {
-                    small: '0.7in',
-                    medium: '0.9in',
-                    large: '1.2in'
-                }[this.labelSize];
+        const labelSize = {
+            small: { width: '2in', height: '1in', fontSize: '8px' },
+            medium: { width: '3in', height: '2in', fontSize: '10px' },
+            large: { width: '4in', height: '3in', fontSize: '12px' }
+        }[this.labelSize];  // sekarang selalu large
 
-                const printWindow = window.open('', '_blank');
-                let labelsHTML = '';
+        const qrSize = {
+            small: '0.7in',
+            medium: '0.9in',
+            large: '1.2in'
+        }[this.labelSize];
 
-                for (let i = 0; i < this.labelCopies; i++) {
-                    labelsHTML += `
-                        <div class="label" style="
-                            width: ${labelSize.width}; 
-                            height: ${labelSize.height}; 
-                            border: 1px solid #000; 
-                            padding: 0.1in; 
-                            margin: 0.1in; 
-                            display: inline-block; 
-                            vertical-align: top; 
-                            page-break-inside: avoid; 
-                            background: white; 
-                            box-sizing: border-box;
-                            font-size: ${labelSize.fontSize};
-                        ">
-                            <div style="text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                                <div>
-                                    <h4 style="margin: 0.05in 0; font-weight: bold; word-break: break-word; text-transform: uppercase;">
-                                        ${labelData.article}
-                                    </h4>
-                                    <p style="margin: 0.03in 0; color: #555;">${labelData.komponen}</p>
-                                    <p style="margin: 0.02in 0;">ID: ${labelData.id} | Lokasi: ${labelData.kolom || '-'}</p>
-                                    <p style="margin: 0.02in 0;">Kategori: ${labelData.category || '-'}</p>
-                                    <p style="margin: 0.02in 0;">PO: ${labelData.noPo || '-'} | Stok: ${labelData.qty} | Min: ${labelData.minStock}</p>
-                                </div>
-                                <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
-                                    <p style="margin: 0; font-weight: bold; font-size: 1.2em; letter-spacing: 1px;">
-                                        ${labelData.kolom || 'LOKASI'}
-                                    </p>
-                                </div>
-                                <div>
-                                    ${this.labelShowQR && labelData.qrCodeDataURL ? `
-                                    <div style="margin: 0.05in auto; text-align: center;">
-                                        <img src="${labelData.qrCodeDataURL}" alt="QR Code" 
-                                             style="width: ${qrSize}; height: ${qrSize}; image-rendering: crisp-edges;">
-                                    </div>
-                                    ` : ''}
-                                    ${this.labelShowBarcode ? `
-                                    <div style="margin: 0.05in 0; text-align: center;">
-                                        <div style="display: inline-block; padding: 0.03in 0.1in; border: 1px solid #000; letter-spacing: 0.1em; font-family: 'Courier New', monospace; font-weight: bold;">
-                                            ${labelData.id.toString().padStart(6, '0')}
-                                        </div>
-                                        <p style="font-size: 0.7em; margin: 0.02in 0; color: #666;">ID: ${labelData.id}</p>
-                                    </div>
-                                    ` : ''}
-                                    <p style="color: #666; margin-top: 0.05in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
-                                        WMS v5.1 | ${new Date().toLocaleDateString('id-ID')}
-                                    </p>
-                                </div>
-                            </div>
+        const printWindow = window.open('', '_blank');
+        let labelsHTML = '';
+
+        for (let i = 0; i < this.labelCopies; i++) {
+            labelsHTML += `
+                <div class="label" style="
+                    width: ${labelSize.width}; 
+                    height: ${labelSize.height}; 
+                    border: 1px solid #000; 
+                    padding: 0.1in; 
+                    margin: 0.1in; 
+                    display: inline-block; 
+                    vertical-align: top; 
+                    page-break-inside: avoid; 
+                    background: white; 
+                    box-sizing: border-box;
+                    font-size: ${labelSize.fontSize};
+                ">
+                    <div style="text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <h4 style="margin: 0.05in 0; font-weight: bold; word-break: break-word; text-transform: uppercase;">
+                                ${labelData.article}
+                            </h4>
+                            <p style="margin: 0.03in 0; color: #555;">${labelData.komponen}</p>
+                            <p style="margin: 0.02in 0;">ID: ${labelData.id} | Lokasi: ${labelData.kolom || '-'}</p>
+                            <p style="margin: 0.02in 0;">Kategori: ${labelData.category || '-'}</p>
+                            <p style="margin: 0.02in 0;">PO: ${labelData.noPo || '-'} | Stok: ${labelData.qty} | Min: ${labelData.minStock}</p>
                         </div>
-                    `;
-                }
-
-                const columns = { small: 4, medium: 3, large: 2 }[this.labelSize];
-
-                printWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                        <head>
-                            <title>Label - ${labelData.article}</title>
-                            <style>
-                                * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                                body { font-family: 'Inter', Arial, sans-serif; margin: 0.25in; padding: 0; background: white; }
-                                @media print { 
-                                    body { margin: 0 !important; padding: 0 !important; }
-                                    .label { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                                    .no-print { display: none !important; }
-                                    @page { margin: 0.25in; size: letter; }
-                                }
-                                .label-container { display: grid; grid-template-columns: repeat(${columns}, 1fr); gap: 0.1in; width: 100%; }
-                                .controls { background: #f5f5f5; padding: 10px; margin-bottom: 10px; border-radius: 5px; position: sticky; top: 0; z-index: 100; }
-                                button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 14px; margin-right: 10px; }
-                                button.close-btn { background: #f44336; }
-                                .summary { background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="controls no-print">
-                                <div class="summary">
-                                    <h3>Label untuk: ${labelData.article}</h3>
-                                    <p>Jumlah label: ${this.labelCopies} | Ukuran: ${this.labelSize}</p>
+                        <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
+                            <p style="margin: 0; font-weight: bold; font-size: 1.2em; letter-spacing: 1px;">
+                                ${labelData.kolom || 'LOKASI'}
+                            </p>
+                        </div>
+                        <div>
+                            ${this.labelShowQR && labelData.qrCodeDataURL ? `
+                            <div style="margin: 0.05in auto; text-align: center;">
+                                <img src="${labelData.qrCodeDataURL}" alt="QR Code" 
+                                     style="width: ${qrSize}; height: ${qrSize}; image-rendering: crisp-edges;">
+                            </div>
+                            ` : ''}
+                            ${this.labelShowBarcode ? `
+                            <div style="margin: 0.05in 0; text-align: center;">
+                                <div style="display: inline-block; padding: 0.03in 0.1in; border: 1px solid #000; letter-spacing: 0.1em; font-family: 'Courier New', monospace; font-weight: bold;">
+                                    ${labelData.id.toString().padStart(6, '0')}
                                 </div>
-                                <button onclick="window.print()"><i class="fas fa-print"></i> Print Labels</button>
-                                <button onclick="window.close()" class="close-btn"><i class="fas fa-times"></i> Close</button>
+                                <p style="font-size: 0.7em; margin: 0.02in 0; color: #666;">ID: ${labelData.id}</p>
                             </div>
-                            <div class="label-container">${labelsHTML}</div>
-                            <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
-                                <p>Warehouse Management System v5.1 - Label</p>
-                                <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
-                            </div>
-                            <script>
-                                window.onafterprint = function() { setTimeout(() => window.close(), 1000); };
-                            <\/script>
-                        </body>
-                    </html>
-                `);
-                printWindow.document.close();
-                this.showLabelModal = false;
-                this.showNotificationMessage(`Label untuk ${labelData.article} siap dicetak`, 'success');
-            } catch (err) {
-                console.error('Error printing labels:', err);
-                this.showNotificationMessage('Gagal mencetak label: ' + err.message, 'error');
-            }
-        },
+                            ` : ''}
+                            <p style="color: #666; margin-top: 0.05in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
+                                WMS v5.1 | ${new Date().toLocaleDateString('id-ID')}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
 
-        openBulkLabelModal() {
-            if (!this.canManageItems) return;
-            this.selectedItemsForBulkLabel = [];
-            this.bulkLabelCopies = 1;
-            this.bulkLabelFormat = 'standard';
-            this.bulkLabelSize = 'medium';
-            this.showBulkLabelModal = true;
-        },
+        const columns = { small: 4, medium: 3, large: 2 }[this.labelSize];
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <title>Label - ${labelData.article}</title>
+                    <style>
+                        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        body { font-family: 'Inter', Arial, sans-serif; margin: 0.25in; padding: 0; background: white; }
+                        @media print { 
+                            body { margin: 0 !important; padding: 0 !important; }
+                            .label { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                            .no-print { display: none !important; }
+                            @page { margin: 0.25in; size: letter; }
+                        }
+                        .label-container { display: grid; grid-template-columns: repeat(${columns}, 1fr); gap: 0.1in; width: 100%; }
+                        .controls { background: #f5f5f5; padding: 10px; margin-bottom: 10px; border-radius: 5px; position: sticky; top: 0; z-index: 100; }
+                        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 14px; margin-right: 10px; }
+                        button.close-btn { background: #f44336; }
+                        .summary { background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="controls no-print">
+                        <div class="summary">
+                            <h3>Label untuk: ${labelData.article}</h3>
+                            <p>Jumlah label: ${this.labelCopies} | Ukuran: ${this.labelSize}</p>
+                        </div>
+                        <button onclick="window.print()"><i class="fas fa-print"></i> Print Labels</button>
+                        <button onclick="window.close()" class="close-btn"><i class="fas fa-times"></i> Close</button>
+                    </div>
+                    <div class="label-container">${labelsHTML}</div>
+                    <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
+                        <p>Warehouse Management System v5.1 - Label</p>
+                        <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
+                    </div>
+                    <script>
+                        window.onafterprint = function() { setTimeout(() => window.close(), 1000); };
+                    <\/script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        this.showLabelModal = false;
+        this.showNotificationMessage(`Label untuk ${labelData.article} siap dicetak`, 'success');
+    } catch (err) {
+        console.error('Error printing labels:', err);
+        this.showNotificationMessage('Gagal mencetak label: ' + err.message, 'error');
+    }
+},
+
+openBulkLabelModal() {
+    if (!this.canManageItems) return;
+    this.selectedItemsForBulkLabel = [];
+    this.bulkLabelCopies = 1;
+    this.bulkLabelFormat = 'detailed';   // selalu detailed
+    this.bulkLabelSize = 'large';        // selalu besar
+    this.showBulkLabelModal = true;
+},
 
         toggleSelectAllBulkLabels() {
             if (this.selectedItemsForBulkLabel.length === this.items.length) {
@@ -904,148 +909,152 @@ function warehouseApp() {
             }
         },
 
-        async printBulkLabels() {
-            const selectedItems = this.items.filter(item => this.selectedItemsForBulkLabel.includes(item.id));
-            if (selectedItems.length === 0) {
-                this.showNotificationMessage('Pilih minimal satu item untuk label', 'error');
-                return;
-            }
-            try {
-                const response = await this.fetchWithAuth('/api/labels/bulk', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ itemIds: selectedItems.map(item => item.id) })
-                });
-                if (!response.ok) throw new Error('Gagal mengambil data label');
-                const result = await response.json();
-                if (!result.success || !result.labels) throw new Error('Data label tidak valid');
+async printBulkLabels() {
+    // paksa format dan ukuran
+    this.bulkLabelSize = 'large';
+    this.bulkLabelFormat = 'detailed';
 
-                const labelSize = {
-                    small: { width: '2in', height: '1in', fontSize: '8px' },
-                    medium: { width: '3in', height: '2in', fontSize: '10px' },
-                    large: { width: '4in', height: '3in', fontSize: '12px' }
-                }[this.bulkLabelSize];
+    const selectedItems = this.items.filter(item => this.selectedItemsForBulkLabel.includes(item.id));
+    if (selectedItems.length === 0) {
+        this.showNotificationMessage('Pilih minimal satu item untuk label', 'error');
+        return;
+    }
+    try {
+        const response = await this.fetchWithAuth('/api/labels/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: selectedItems.map(item => item.id) })
+        });
+        if (!response.ok) throw new Error('Gagal mengambil data label');
+        const result = await response.json();
+        if (!result.success || !result.labels) throw new Error('Data label tidak valid');
 
-                const qrSize = {
-                    small: '0.7in',
-                    medium: '0.9in',
-                    large: '1.2in'
-                }[this.bulkLabelSize];
+        const labelSize = {
+            small: { width: '2in', height: '1in', fontSize: '8px' },
+            medium: { width: '3in', height: '2in', fontSize: '10px' },
+            large: { width: '4in', height: '3in', fontSize: '12px' }
+        }[this.bulkLabelSize];
 
-                const printWindow = window.open('', '_blank');
-                let labelsHTML = '';
+        const qrSize = {
+            small: '0.7in',
+            medium: '0.9in',
+            large: '1.2in'
+        }[this.bulkLabelSize];
 
-                result.labels.forEach((label, idx) => {
-                    for (let i = 0; i < this.bulkLabelCopies; i++) {
-                        labelsHTML += `
-                            <div class="label" style="
-                                width: ${labelSize.width}; 
-                                height: ${labelSize.height}; 
-                                border: 1px solid #000; 
-                                padding: 0.1in; 
-                                margin: 0.1in; 
-                                display: inline-block; 
-                                vertical-align: top; 
-                                page-break-inside: avoid; 
-                                background: white; 
-                                box-sizing: border-box;
-                                font-size: ${labelSize.fontSize};
-                            ">
-                                <div style="text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                                    <div>
-                                        <h4 style="margin: 0.05in 0; font-weight: bold; word-break: break-word; text-transform: uppercase;">
-                                            ${label.article}
-                                        </h4>
-                                        <p style="margin: 0.03in 0; color: #555;">${label.komponen}</p>
-                                        <p style="margin: 0.02in 0;">ID: ${label.id} | Lokasi: ${label.kolom || '-'}</p>
-                                        <p style="margin: 0.02in 0;">Kategori: ${label.category || '-'}</p>
-                                        <p style="margin: 0.02in 0;">PO: ${label.noPo || '-'} | Stok: ${label.qty} | Min: ${label.minStock}</p>
-                                    </div>
-                                    <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
-                                        <p style="margin: 0; font-weight: bold; font-size: 1.2em; letter-spacing: 1px;">
-                                            ${label.kolom || 'LOKASI'}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        ${this.bulkLabelFormat !== 'simple' && label.qrCodeDataURL ? `
-                                        <div style="margin: 0.05in auto; text-align: center;">
-                                            <img src="${label.qrCodeDataURL}" alt="QR Code" 
-                                                 style="width: ${qrSize}; height: ${qrSize}; image-rendering: crisp-edges;">
-                                        </div>
-                                        ` : ''}
-                                        ${this.bulkLabelFormat === 'detailed' ? `
-                                        <div style="margin: 0.05in 0; text-align: center;">
-                                            <div style="display: inline-block; padding: 0.03in 0.1in; border: 1px solid #000; letter-spacing: 0.1em; font-family: 'Courier New', monospace; font-weight: bold;">
-                                                ${label.id.toString().padStart(6, '0')}
-                                            </div>
-                                            <p style="font-size: 0.7em; margin: 0.02in 0; color: #666;">ID: ${label.id}</p>
-                                        </div>
-                                        ` : ''}
-                                        <p style="color: #666; margin-top: 0.05in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
-                                            WMS v5.1 | ${new Date(label.timestamp || Date.now()).toLocaleDateString('id-ID')}
-                                        </p>
-                                    </div>
+        const printWindow = window.open('', '_blank');
+        let labelsHTML = '';
+
+        result.labels.forEach((label, idx) => {
+            for (let i = 0; i < this.bulkLabelCopies; i++) {
+                labelsHTML += `
+                    <div class="label" style="
+                        width: ${labelSize.width}; 
+                        height: ${labelSize.height}; 
+                        border: 1px solid #000; 
+                        padding: 0.1in; 
+                        margin: 0.1in; 
+                        display: inline-block; 
+                        vertical-align: top; 
+                        page-break-inside: avoid; 
+                        background: white; 
+                        box-sizing: border-box;
+                        font-size: ${labelSize.fontSize};
+                    ">
+                        <div style="text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                            <div>
+                                <h4 style="margin: 0.05in 0; font-weight: bold; word-break: break-word; text-transform: uppercase;">
+                                    ${label.article}
+                                </h4>
+                                <p style="margin: 0.03in 0; color: #555;">${label.komponen}</p>
+                                <p style="margin: 0.02in 0;">ID: ${label.id} | Lokasi: ${label.kolom || '-'}</p>
+                                <p style="margin: 0.02in 0;">Kategori: ${label.category || '-'}</p>
+                                <p style="margin: 0.02in 0;">PO: ${label.noPo || '-'} | Stok: ${label.qty} | Min: ${label.minStock}</p>
+                            </div>
+                            <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
+                                <p style="margin: 0; font-weight: bold; font-size: 1.2em; letter-spacing: 1px;">
+                                    ${label.kolom || 'LOKASI'}
+                                </p>
+                            </div>
+                            <div>
+                                ${this.bulkLabelFormat !== 'simple' && label.qrCodeDataURL ? `
+                                <div style="margin: 0.05in auto; text-align: center;">
+                                    <img src="${label.qrCodeDataURL}" alt="QR Code" 
+                                         style="width: ${qrSize}; height: ${qrSize}; image-rendering: crisp-edges;">
                                 </div>
-                            </div>
-                        `;
-                    }
-                });
-
-                const columns = { small: 4, medium: 3, large: 2 }[this.bulkLabelSize];
-
-                printWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                        <head>
-                            <title>Label Massal - ${selectedItems.length} items</title>
-                            <style>
-                                * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                                body { font-family: 'Inter', Arial, sans-serif; margin: 0.25in; padding: 0; background: white; }
-                                @media print { 
-                                    body { margin: 0 !important; padding: 0 !important; }
-                                    .label { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                                    .no-print { display: none !important; }
-                                    @page { margin: 0.25in; size: letter; }
-                                }
-                                .label-container { display: grid; grid-template-columns: repeat(${columns}, 1fr); gap: 0.1in; width: 100%; }
-                                .controls { background: #f5f5f5; padding: 10px; margin-bottom: 10px; border-radius: 5px; position: sticky; top: 0; z-index: 100; }
-                                button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 14px; margin-right: 10px; }
-                                button.close-btn { background: #f44336; }
-                                .summary { background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="controls no-print">
-                                <div class="summary">
-                                    <h3>Label Massal</h3>
-                                    <p>Jumlah Item: ${selectedItems.length} | Label per Item: ${this.bulkLabelCopies} | Total Label: ${selectedItems.length * this.bulkLabelCopies}</p>
-                                    <p>Format: ${this.bulkLabelFormat} | Ukuran: ${this.bulkLabelSize}</p>
+                                ` : ''}
+                                ${this.bulkLabelFormat === 'detailed' ? `
+                                <div style="margin: 0.05in 0; text-align: center;">
+                                    <div style="display: inline-block; padding: 0.03in 0.1in; border: 1px solid #000; letter-spacing: 0.1em; font-family: 'Courier New', monospace; font-weight: bold;">
+                                        ${label.id.toString().padStart(6, '0')}
+                                    </div>
+                                    <p style="font-size: 0.7em; margin: 0.02in 0; color: #666;">ID: ${label.id}</p>
                                 </div>
-                                <button onclick="window.print()"><i class="fas fa-print"></i> Print All Labels</button>
-                                <button onclick="window.close()" class="close-btn"><i class="fas fa-times"></i> Close</button>
+                                ` : ''}
+                                <p style="color: #666; margin-top: 0.05in; border-top: 1px dashed #ccc; padding-top: 0.05in;">
+                                    WMS v5.1 | ${new Date(label.timestamp || Date.now()).toLocaleDateString('id-ID')}
+                                </p>
                             </div>
-                            <div class="label-container">${labelsHTML}</div>
-                            <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
-                                <p>Warehouse Management System v5.1 - Label Massal</p>
-                                <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
-                            </div>
-                            <script>
-                                window.onafterprint = function() { setTimeout(() => window.close(), 1000); };
-                            <\/script>
-                        </body>
-                    </html>
-                `);
-                printWindow.document.close();
-                this.showBulkLabelModal = false;
-                this.showNotificationMessage(
-                    `Berhasil membuat ${selectedItems.length * this.bulkLabelCopies} label untuk ${selectedItems.length} item`,
-                    'success'
-                );
-            } catch (err) {
-                console.error('Error printing bulk labels:', err);
-                this.showNotificationMessage('Gagal mencetak label massal: ' + err.message, 'error');
+                        </div>
+                    </div>
+                `;
             }
-        },
+        });
+
+        const columns = { small: 4, medium: 3, large: 2 }[this.bulkLabelSize];
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <title>Label Massal - ${selectedItems.length} items</title>
+                    <style>
+                        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        body { font-family: 'Inter', Arial, sans-serif; margin: 0.25in; padding: 0; background: white; }
+                        @media print { 
+                            body { margin: 0 !important; padding: 0 !important; }
+                            .label { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                            .no-print { display: none !important; }
+                            @page { margin: 0.25in; size: letter; }
+                        }
+                        .label-container { display: grid; grid-template-columns: repeat(${columns}, 1fr); gap: 0.1in; width: 100%; }
+                        .controls { background: #f5f5f5; padding: 10px; margin-bottom: 10px; border-radius: 5px; position: sticky; top: 0; z-index: 100; }
+                        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 14px; margin-right: 10px; }
+                        button.close-btn { background: #f44336; }
+                        .summary { background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="controls no-print">
+                        <div class="summary">
+                            <h3>Label Massal</h3>
+                            <p>Jumlah Item: ${selectedItems.length} | Label per Item: ${this.bulkLabelCopies} | Total Label: ${selectedItems.length * this.bulkLabelCopies}</p>
+                            <p>Format: ${this.bulkLabelFormat} | Ukuran: ${this.bulkLabelSize}</p>
+                        </div>
+                        <button onclick="window.print()"><i class="fas fa-print"></i> Print All Labels</button>
+                        <button onclick="window.close()" class="close-btn"><i class="fas fa-times"></i> Close</button>
+                    </div>
+                    <div class="label-container">${labelsHTML}</div>
+                    <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
+                        <p>Warehouse Management System v5.1 - Label Massal</p>
+                        <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
+                    </div>
+                    <script>
+                        window.onafterprint = function() { setTimeout(() => window.close(), 1000); };
+                    <\/script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        this.showBulkLabelModal = false;
+        this.showNotificationMessage(
+            `Berhasil membuat ${selectedItems.length * this.bulkLabelCopies} label untuk ${selectedItems.length} item`,
+            'success'
+        );
+    } catch (err) {
+        console.error('Error printing bulk labels:', err);
+        this.showNotificationMessage('Gagal mencetak label massal: ' + err.message, 'error');
+    }
+},
 
         // ========== EXPORT SEMUA ITEM KE EXCEL ==========
         async exportToExcel() {
