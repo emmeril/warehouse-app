@@ -711,25 +711,53 @@
                 </div>
 
                 <!-- Hasil Scan -->
-                <div x-show="scannedItem" class="mt-4 p-5 bg-blue-50 rounded-2xl border border-blue-200">
-                    <div class="flex justify-between items-start">
-                        <h4 class="font-bold text-blue-800 flex items-center gap-2"><i class="fas fa-check-circle"></i> Item Ditemukan</h4>
-                        <button @click="scannedItem = null" class="text-blue-500 hover:text-blue-700"><i class="fas fa-times"></i></button>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4 mt-3">
-                        <div>
-                            <p class="text-xs text-blue-600">Article</p>
-                            <p class="font-bold text-slate-800" x-text="scannedItem.article"></p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-blue-600">Stok</p>
-                            <p class="font-bold text-2xl" :class="scannedItem.qty <= scannedItem.minStock ? 'text-red-600' : 'text-green-600'" x-text="scannedItem.qty"></p>
-                        </div>
-                    </div>
-                    <button @click="openQRDetailUpdate()" class="w-full mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md">
-                        <i class="fas fa-edit mr-2"></i> Update Qty Detail
-                    </button>
-                </div>
+               <!-- Hasil Scan (dengan info lengkap) -->
+<div x-show="scannedItem" class="mt-4 p-5 bg-white rounded-2xl border border-blue-200 shadow-sm">
+    <div class="flex justify-between items-start mb-3">
+        <h4 class="font-bold text-blue-800 flex items-center gap-2">
+            <i class="fas fa-check-circle text-blue-600"></i> Item Ditemukan
+        </h4>
+        <button @click="scannedItem = null" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+    </div>
+    
+    <div class="space-y-3">
+        <div class="flex items-center justify-between">
+            <p class="font-semibold text-slate-800 text-lg" x-text="scannedItem.article"></p>
+            <span class="px-3 py-1 rounded-full text-xs font-semibold" 
+                  :class="getStatusBadgeClass(scannedItem.qty, scannedItem.minStock)">
+                <i :class="getStatusIcon(scannedItem.qty, scannedItem.minStock)"></i>
+                <span x-text="getStatusText(scannedItem.qty, scannedItem.minStock)"></span>
+            </span>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <div><span class="text-slate-500">ID:</span> <span class="font-mono font-medium" x-text="scannedItem.id"></span></div>
+            <div><span class="text-slate-500">Komponen:</span> <span class="font-medium" x-text="scannedItem.komponen || '-'"></span></div>
+            <div><span class="text-slate-500">Kategori:</span> <span class="font-medium" x-text="scannedItem.Category?.name || '-'"></span></div>
+            <div><span class="text-slate-500">Lokasi:</span> <span class="font-medium" x-text="scannedItem.kolom || '-'"></span></div>
+            <div><span class="text-slate-500">Min Stock:</span> <span class="font-medium" x-text="scannedItem.minStock"></span></div>
+            <div><span class="text-slate-500">No. PO:</span> <span class="font-medium" x-text="scannedItem.noPo || '-'"></span></div>
+        </div>
+        
+        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+            <span class="text-sm font-medium text-slate-700">Stok Saat Ini:</span>
+            <span class="text-2xl font-bold" :class="scannedItem.qty <= scannedItem.minStock ? 'text-red-600' : 'text-green-600'" x-text="scannedItem.qty"></span>
+        </div>
+        
+        <div x-show="scannedItem.qty <= scannedItem.minStock" class="text-xs text-red-600 bg-red-50 p-2 rounded-lg flex items-center gap-1">
+            <i class="fas fa-exclamation-triangle"></i> Stok berada di bawah minimum! Segera lakukan restock.
+        </div>
+        
+        <div class="flex gap-2 mt-2">
+            <button @click="openQRDetailUpdate()" class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2.5 px-3 rounded-xl text-sm flex items-center justify-center gap-1">
+                <i class="fas fa-edit"></i> Update Qty
+            </button>
+            <button @click="viewHistoryFromScan()" class="flex-1 bg-purple-100 hover:bg-purple-200 text-purple-800 font-semibold py-2.5 px-3 rounded-xl text-sm flex items-center justify-center gap-1 border border-purple-300">
+                <i class="fas fa-history"></i> Riwayat
+            </button>
+        </div>
+    </div>
+</div>
             </div>
             <div class="p-4 sm:p-6 border-t border-slate-100 flex justify-end">
                 <button @click="closeQRScanModal" class="px-6 py-2.5 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition">
@@ -740,84 +768,131 @@
     </div>
 
     <!-- ========== MODAL UPDATE QTY DETAIL ========== -->
-    <div x-show="showQtyDetailModal" 
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 scale-90"
-         x-transition:enter-end="opacity-100 scale-100"
-         class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-         @click.away="showQtyDetailModal = false"
-         x-cloak>
-        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg" @click.stop>
-            <div class="p-6 border-b border-slate-100">
-                <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fas fa-exchange-alt text-blue-600"></i> Update Quantity
-                </h3>
+   <!-- ========== MODAL UPDATE QTY DETAIL (DIPERBARUI) ========== -->
+<div x-show="showQtyDetailModal" 
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 scale-90"
+     x-transition:enter-end="opacity-100 scale-100"
+     class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+     @click.away="showQtyDetailModal = false"
+     x-cloak>
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg" @click.stop>
+        <div class="p-6 border-b border-slate-100">
+            <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <i class="fas fa-exchange-alt text-blue-600"></i> Update Quantity
+            </h3>
+        </div>
+        <div class="p-6 space-y-5">
+            <!-- Detail Item Lengkap -->
+            <div x-show="selectedItemForQtyUpdate" class="bg-blue-50 p-4 rounded-xl border border-blue-200 space-y-2">
+                <div class="flex justify-between items-start">
+                    <p class="font-semibold text-slate-800 text-lg" x-text="selectedItemForQtyUpdate?.article"></p>
+                    <span class="px-2 py-1 rounded-full text-xs font-semibold" 
+                          :class="getStatusBadgeClass(selectedItemForQtyUpdate?.qty, selectedItemForQtyUpdate?.minStock)">
+                        <i :class="getStatusIcon(selectedItemForQtyUpdate?.qty, selectedItemForQtyUpdate?.minStock)"></i>
+                        <span x-text="getStatusText(selectedItemForQtyUpdate?.qty, selectedItemForQtyUpdate?.minStock)"></span>
+                    </span>
+                </div>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    <div><span class="text-slate-500">ID:</span> <span class="font-mono" x-text="selectedItemForQtyUpdate?.id"></span></div>
+                    <div><span class="text-slate-500">Komponen:</span> <span x-text="selectedItemForQtyUpdate?.komponen || '-'"></span></div>
+                    <div><span class="text-slate-500">Kategori:</span> <span x-text="selectedItemForQtyUpdate?.Category?.name || '-'"></span></div>
+                    <div><span class="text-slate-500">Lokasi:</span> <span x-text="selectedItemForQtyUpdate?.kolom || '-'"></span></div>
+                    <div><span class="text-slate-500">Min Stock:</span> <span class="font-semibold" x-text="selectedItemForQtyUpdate?.minStock"></span></div>
+                    <div><span class="text-slate-500">Stok Saat Ini:</span> <span class="font-bold text-lg" :class="selectedItemForQtyUpdate?.qty <= selectedItemForQtyUpdate?.minStock ? 'text-red-600' : 'text-green-600'" x-text="selectedItemForQtyUpdate?.qty"></span></div>
+                </div>
             </div>
-            <div class="p-6 space-y-5">
-                <div x-show="selectedItemForQtyUpdate" class="bg-blue-50 p-4 rounded-xl border border-blue-200">
-                    <p class="font-semibold text-slate-800" x-text="selectedItemForQtyUpdate?.article"></p>
-                    <div class="flex justify-between mt-2 text-sm">
-                        <span>Stok Saat Ini: <span class="font-bold text-lg" x-text="selectedItemForQtyUpdate?.qty"></span></span>
-                        <span>Komponen: <span x-text="selectedItemForQtyUpdate?.komponen || '-'"></span></span>
+
+            <form @submit.prevent="submitQtyDetailUpdate" class="space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-600 text-sm font-medium mb-1">Tipe Perubahan</label>
+                        <select x-model="qtyUpdateDetail.changeType" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl">
+                            <option value="inbound">Inbound (Tambah)</option>
+                            <option value="outbound">Outbound (Kurang)</option>
+                            <option value="adjustment">Adjustment</option>
+                            <option value="qr_scan">QR Scan</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-600 text-sm font-medium mb-1">Oleh</label>
+                        <div class="px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 text-sm">
+                            <i class="fas fa-user mr-1"></i><span x-text="user?.username"></span>
+                        </div>
                     </div>
                 </div>
-                <form @submit.prevent="submitQtyDetailUpdate" class="space-y-4">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-slate-600 text-sm font-medium mb-1">Tipe</label>
-                            <select x-model="qtyUpdateDetail.changeType" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl">
-                                <option value="inbound">Inbound</option>
-                                <option value="outbound">Outbound</option>
-                                <option value="adjustment">Adjustment</option>
-                                <option value="qr_scan">QR Scan</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-slate-600 text-sm font-medium mb-1">Oleh</label>
-                            <div class="px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 text-sm">
-                                <i class="fas fa-user mr-1"></i><span x-text="user?.username"></span>
-                            </div>
+
+            
+
+                <div class="space-y-3">
+                    <div class="flex gap-4 bg-slate-50 p-2 rounded-lg">
+                        <label class="flex items-center gap-1.5 text-sm">
+                            <input type="radio" name="updateMethod" value="adjust" x-model="qtyUpdateDetail.method" checked>
+                            <span>Adjust (+/-)</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 text-sm">
+                            <input type="radio" name="updateMethod" value="set" x-model="qtyUpdateDetail.method">
+                            <span>Set ke nilai</span>
+                        </label>
+                    </div>
+
+                    <div x-show="qtyUpdateDetail.method === 'adjust'">
+                        <label class="block text-slate-600 text-sm font-medium mb-1.5">Adjustment</label>
+                        <div class="relative">
+                            <input type="number" x-model="qtyUpdateDetail.adjustment" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl" placeholder="+10 atau -5" required>
+                            <div class="absolute right-3 top-2.5 text-sm font-semibold" 
+                                 :class="qtyUpdateDetail.adjustment > 0 ? 'text-green-600' : qtyUpdateDetail.adjustment < 0 ? 'text-red-600' : 'text-slate-400'"
+                                 x-text="qtyUpdateDetail.adjustment > 0 ? `+${qtyUpdateDetail.adjustment}` : qtyUpdateDetail.adjustment"></div>
                         </div>
                     </div>
-                    <div class="space-y-3">
-                        <div class="flex gap-4 bg-slate-50 p-2 rounded-lg">
-                            <label class="flex items-center gap-1.5 text-sm">
-                                <input type="radio" name="updateMethod" value="adjust" x-model="qtyUpdateDetail.method" checked>
-                                <span>Adjust (+/-)</span>
-                            </label>
-                            <label class="flex items-center gap-1.5 text-sm">
-                                <input type="radio" name="updateMethod" value="set" x-model="qtyUpdateDetail.method">
-                                <span>Set ke nilai</span>
-                            </label>
+
+                    <div x-show="qtyUpdateDetail.method === 'set'">
+                        <label class="block text-slate-600 text-sm font-medium mb-1.5">Qty Baru</label>
+                        <input type="number" x-model="qtyUpdateDetail.newQty" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl" min="0" required>
+                    </div>
+
+                    <!-- Pratinjau Stok Setelah Update -->
+                    <div x-show="selectedItemForQtyUpdate" class="mt-2 p-3 bg-slate-100 rounded-xl">
+                        <p class="text-sm font-medium text-slate-700 mb-1">Pratinjau Stok:</p>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm">Stok Saat Ini:</span>
+                            <span class="font-semibold" x-text="selectedItemForQtyUpdate?.qty"></span>
                         </div>
-                        <div x-show="qtyUpdateDetail.method === 'adjust'">
-                            <label class="block text-slate-600 text-sm font-medium mb-1.5">Adjustment</label>
-                            <div class="relative">
-                                <input type="number" x-model="qtyUpdateDetail.adjustment" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl" placeholder="+10 atau -5" required>
-                                <div class="absolute right-3 top-2.5 text-sm font-semibold" :class="qtyUpdateDetail.adjustment > 0 ? 'text-green-600' : 'text-red-600'" x-text="qtyUpdateDetail.adjustment > 0 ? `+${qtyUpdateDetail.adjustment}` : qtyUpdateDetail.adjustment"></div>
-                            </div>
+                        <div class="flex justify-between items-center text-blue-600">
+                            <span class="text-sm">Perubahan:</span>
+                            <span x-text="qtyUpdateDetail.method === 'adjust' ? (qtyUpdateDetail.adjustment > 0 ? '+' : '') + qtyUpdateDetail.adjustment : '→ set'"></span>
                         </div>
-                        <div x-show="qtyUpdateDetail.method === 'set'">
-                            <label class="block text-slate-600 text-sm font-medium mb-1.5">Qty Baru</label>
-                            <input type="number" x-model="qtyUpdateDetail.newQty" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl" min="0" required>
+                        <div class="flex justify-between items-center text-lg font-bold mt-1 pt-1 border-t border-slate-300">
+                            <span>Stok Baru:</span>
+                            <span :class="(qtyUpdateDetail.method === 'adjust' ? (selectedItemForQtyUpdate?.qty + (parseInt(qtyUpdateDetail.adjustment)||0)) : qtyUpdateDetail.newQty) <= selectedItemForQtyUpdate?.minStock ? 'text-red-600' : 'text-green-600'"
+                                  x-text="qtyUpdateDetail.method === 'adjust' ? (selectedItemForQtyUpdate?.qty + (parseInt(qtyUpdateDetail.adjustment)||0)) : qtyUpdateDetail.newQty"></span>
                         </div>
-                        <div>
-                            <label class="block text-slate-600 text-sm font-medium mb-1.5">Catatan</label>
-                            <textarea x-model="qtyUpdateDetail.notes" rows="2" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl" placeholder="Alasan perubahan..."></textarea>
+                        <!-- Peringatan jika stok baru rendah -->
+                        <div x-show="(qtyUpdateDetail.method === 'adjust' ? (selectedItemForQtyUpdate?.qty + (parseInt(qtyUpdateDetail.adjustment)||0)) : qtyUpdateDetail.newQty) <= selectedItemForQtyUpdate?.minStock"
+                             class="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded-lg">
+                            <i class="fas fa-exclamation-triangle mr-1"></i> Stok baru berada di bawah atau sama dengan minimum! Segera lakukan pemesanan.
                         </div>
                     </div>
-                    <div class="flex gap-3 pt-3">
-                        <button type="submit" class="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md" :disabled="qtyUpdateLoading">
-                            <i class="fas fa-check-circle mr-2" :class="{'fa-spinner fa-spin': qtyUpdateLoading}"></i> Update
-                        </button>
-                        <button type="button" @click="showQtyDetailModal = false" class="px-5 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50">
-                            Batal
-                        </button>
+
+                    <div>
+                        <label class="block text-slate-600 text-sm font-medium mb-1.5">Catatan</label>
+                        <textarea x-model="qtyUpdateDetail.notes" rows="2" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl" placeholder="Tambahkan catatan..."></textarea>
                     </div>
-                </form>
-            </div>
+                </div>
+
+                <div class="flex gap-3 pt-3">
+                    <button type="submit" class="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md flex items-center justify-center gap-2" :disabled="qtyUpdateLoading">
+                        <i class="fas fa-check-circle" :class="{'fa-spinner fa-spin': qtyUpdateLoading}"></i> 
+                        <span x-text="qtyUpdateLoading ? 'Menyimpan...' : 'Update Stok'"></span>
+                    </button>
+                    <button type="button" @click="showQtyDetailModal = false" class="px-5 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50">
+                        Batal
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
+</div>
 
     <!-- ========== MODAL RIWAYAT QTY ========== -->
     <div x-show="showQtyHistoryModal" 

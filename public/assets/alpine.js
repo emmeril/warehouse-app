@@ -1222,6 +1222,12 @@ function warehouseApp() {
             return `${Math.floor(diff / 1440)} hari lalu`;
         },
 
+        viewHistoryFromScan() {
+    if (this.scannedItem) {
+        this.openQtyHistoryModal(this.scannedItem);
+    }
+},
+
         showNotificationMessage(message, type = 'success') {
             this.notificationMessage = message;
             this.notificationType = type;
