@@ -49,7 +49,7 @@ function warehouseApp() {
         sortField: 'id',
         sortDirection: 'asc',
         currentPage: 1,
-        itemsPerPage: 20,
+        itemsPerPage: 10,
 
         // Loading states
         savingItem: false,
