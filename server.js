@@ -1,5 +1,5 @@
 // Warehouse Management App (Express.js + SQLite + Sequelize)
-// Versi 5.3 – Role Admin/Operator/Staff dengan pembatasan kategori
+// Versi 5.4 – Role Admin/Operator/Staff + Import Excel (Admin only)
 
 const express = require('express');
 const session = require('express-session');
@@ -10,6 +10,7 @@ const path = require('path');
 const QRCode = require('qrcode');
 const SQLiteStore = require('connect-sqlite3')(session);
 const ExcelJS = require('exceljs');
+const multer = require('multer'); // <-- TAMBAHAN
 
 const app = express();
 app.use(bodyParser.json());
@@ -35,7 +36,7 @@ const User = sequelize.define('User', {
   username: { type: DataTypes.STRING, allowNull: false, unique: true },
   password: { type: DataTypes.STRING, allowNull: false },
   role: { type: DataTypes.ENUM('admin', 'operator', 'staff'), defaultValue: 'operator' },
-  categoryId: { type: DataTypes.INTEGER, allowNull: true, references: { model: Category, key: 'id' } } // MODIFIKASI: tambah kolom categoryId
+  categoryId: { type: DataTypes.INTEGER, allowNull: true, references: { model: Category, key: 'id' } }
 });
 
 // Relasi User - Category
@@ -121,7 +122,7 @@ function isAdminOrStaff(req, res, next) {
   res.status(403).json({ error: 'Forbidden - Hanya untuk admin atau staff' });
 }
 
-// MODIFIKASI: Helper untuk menambahkan filter kategori ke WHERE clause
+// Helper untuk menambahkan filter kategori ke WHERE clause
 function addCategoryFilter(req, where) {
   if (req.session.role !== 'admin' && req.session.categoryId) {
     where.categoryId = req.session.categoryId;
@@ -162,7 +163,7 @@ app.post('/api/login', async (req, res) => {
     req.session.userId = user.id;
     req.session.username = user.username;
     req.session.role = user.role;
-    req.session.categoryId = user.categoryId; // MODIFIKASI: simpan categoryId di session
+    req.session.categoryId = user.categoryId;
     res.json({ success: true, user: { id: user.id, username: user.username, role: user.role, categoryId: user.categoryId } });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -189,7 +190,7 @@ app.get('/api/users', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const users = await User.findAll({
       attributes: ['id', 'username', 'role', 'categoryId', 'createdAt', 'updatedAt'],
-      include: [{ model: Category, attributes: ['name'] }] // MODIFIKASI: include kategori
+      include: [{ model: Category, attributes: ['name'] }]
     });
     res.json(users);
   } catch (err) {
@@ -211,7 +212,7 @@ app.post('/api/users', isAuthenticated, isAdmin, async (req, res) => {
       username,
       password: hashedPassword,
       role: role || 'operator',
-      categoryId: categoryId || null // MODIFIKASI: simpan categoryId
+      categoryId: categoryId || null
     });
     res.status(201).json({
       id: newUser.id,
@@ -280,7 +281,7 @@ app.delete('/api/categories/:id', isAuthenticated, isAdmin, async (req, res) => 
     if (itemsCount > 0) {
       return res.status(400).json({ error: 'Kategori masih digunakan oleh item' });
     }
-    const usersCount = await User.count({ where: { categoryId: req.params.id } }); // MODIFIKASI: cek apakah kategori digunakan oleh user
+    const usersCount = await User.count({ where: { categoryId: req.params.id } });
     if (usersCount > 0) {
       return res.status(400).json({ error: 'Kategori masih digunakan oleh user' });
     }
@@ -297,12 +298,11 @@ app.delete('/api/categories/:id', isAuthenticated, isAdmin, async (req, res) => 
 app.post('/api/items', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const data = req.body;
-    // MODIFIKASI: staff hanya bisa membuat item dengan kategori miliknya
     if (req.session.role !== 'admin') {
       if (data.categoryId && data.categoryId !== req.session.categoryId) {
         return res.status(403).json({ error: 'Anda hanya dapat menambah item dalam kategori Anda' });
       }
-      data.categoryId = req.session.categoryId; // paksa ke kategori user
+      data.categoryId = req.session.categoryId;
     }
     const item = await Item.create(data);
     if (req.body.qty > 0) {
@@ -317,7 +317,6 @@ app.post('/api/items', isAuthenticated, isAdminOrStaff, async (req, res) => {
         updatedBy: req.session.username
       });
     }
-    // Muat ulang dengan kategori
     const itemWithCategory = await Item.findByPk(item.id, {
       include: [{ model: Category, attributes: ['id', 'name'] }]
     });
@@ -331,7 +330,7 @@ app.post('/api/items', isAuthenticated, isAdminOrStaff, async (req, res) => {
 app.get('/api/items', isAuthenticated, async (req, res) => {
   try {
     const where = {};
-    addCategoryFilter(req, where); // MODIFIKASI: tambahkan filter kategori
+    addCategoryFilter(req, where);
     const order = [['updatedAt', 'DESC']];
     if (req.query.kolom) where.kolom = req.query.kolom;
     if (req.query.search) {
@@ -375,7 +374,6 @@ app.get('/api/items/:id', isAuthenticated, async (req, res) => {
       include: [{ model: Category, attributes: ['id', 'name'] }]
     });
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    // MODIFIKASI: cek akses kategori
     if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
@@ -394,12 +392,10 @@ app.put('/api/items/:id', isAuthenticated, isAdminOrStaff, async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ message: 'Item not found' });
     }
-    // MODIFIKASI: cek akses
     if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       await transaction.rollback();
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
-    // MODIFIKASI: cek perubahan kategori (staff tidak boleh mengubah kategori)
     if (req.body.categoryId && req.body.categoryId !== item.categoryId && req.session.role !== 'admin') {
       await transaction.rollback();
       return res.status(403).json({ error: 'Tidak dapat mengubah kategori item' });
@@ -463,7 +459,6 @@ app.post('/api/items/:id/update-qty', isAuthenticated, async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ message: 'Item not found' });
     }
-    // MODIFIKASI: cek akses
     if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       await transaction.rollback();
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
@@ -503,7 +498,6 @@ app.get('/api/items/:id/qty-history', isAuthenticated, async (req, res) => {
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    // MODIFIKASI: cek akses
     if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
@@ -526,7 +520,6 @@ app.get('/api/qty-history', isAuthenticated, async (req, res) => {
     if (req.query.endDate) where.createdAt = { ...where.createdAt, [Op.lte]: new Date(req.query.endDate) };
     if (req.query.changeType) where.changeType = req.query.changeType;
 
-    // MODIFIKASI: filter berdasarkan item yang dapat diakses
     const itemWhere = {};
     addCategoryFilter(req, itemWhere);
 
@@ -551,7 +544,7 @@ app.get('/api/qty-history', isAuthenticated, async (req, res) => {
 app.get('/api/dashboard/stats', isAuthenticated, async (req, res) => {
   try {
     const itemWhere = {};
-    addCategoryFilter(req, itemWhere); // MODIFIKASI
+    addCategoryFilter(req, itemWhere);
 
     const totalItems = await Item.count({ where: itemWhere });
     const totalQty = await Item.sum('qty', { where: itemWhere }) || 0;
@@ -601,7 +594,7 @@ app.get('/api/dashboard/stats', isAuthenticated, async (req, res) => {
 app.get('/api/unique-values', isAuthenticated, async (req, res) => {
   try {
     const itemWhere = {};
-    addCategoryFilter(req, itemWhere); // MODIFIKASI
+    addCategoryFilter(req, itemWhere);
 
     const komponen = await Item.findAll({
       attributes: [[sequelize.fn('DISTINCT', sequelize.col('komponen')), 'komponen']],
@@ -635,9 +628,8 @@ app.post('/api/items/bulk/update-qty', isAuthenticated, isAdminOrStaff, async (r
       const { id, adjustment, newQty } = itemData;
       const item = await Item.findByPk(id);
       if (!item) continue;
-      // MODIFIKASI: cek akses
       if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
-        continue; // lewati item yang tidak berhak
+        continue;
       }
       const oldQty = item.qty;
       let finalQty = newQty !== undefined ? parseInt(newQty) : oldQty + parseInt(adjustment);
@@ -667,7 +659,7 @@ app.post('/api/items/bulk/update-qty', isAuthenticated, isAdminOrStaff, async (r
 app.get('/api/export/excel', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const itemWhere = {};
-    addCategoryFilter(req, itemWhere); // MODIFIKASI
+    addCategoryFilter(req, itemWhere);
 
     const items = await Item.findAll({
       where: itemWhere,
@@ -736,7 +728,6 @@ app.post('/api/export/qty-history', isAuthenticated, isAdminOrStaff, async (req,
       where.createdAt = { [Op.gte]: new Date(startDate) };
     }
 
-    // MODIFIKASI: filter berdasarkan akses item
     const itemWhere = {};
     addCategoryFilter(req, itemWhere);
 
@@ -814,9 +805,7 @@ app.post('/api/import/csv', isAuthenticated, isAdminOrStaff, express.text({ type
         qty: parseInt(values[5]) || 0,
         minStock: parseInt(values[6]) || 10,
         kolom: values[7]?.replace(/"/g, '') || ''
-        // categoryId bisa ditambahkan jika ada kolom
       };
-      // MODIFIKASI: staff hanya bisa import dengan kategori miliknya
       if (req.session.role !== 'admin') {
         itemData.categoryId = req.session.categoryId;
       }
@@ -825,6 +814,162 @@ app.post('/api/import/csv', isAuthenticated, isAdminOrStaff, express.text({ type
     }
     res.json({ success: true, message: `Imported ${importedItems.length} items`, items: importedItems });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== IMPORT EXCEL (ADMIN ONLY) ==========
+// Konfigurasi multer
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    const allowed = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Hanya file Excel (.xlsx) yang diperbolehkan'));
+    }
+  },
+  limits: { fileSize: 5 * 1024 * 1024 } // maks 5MB
+});
+
+app.post('/api/import/excel', isAuthenticated, isAdmin, upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'File tidak ditemukan' });
+  }
+
+  const transaction = await sequelize.transaction();
+  try {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(req.file.buffer);
+    const worksheet = workbook.getWorksheet(1); // sheet pertama
+
+    if (!worksheet) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'Sheet tidak ditemukan' });
+    }
+
+    // Ambil header (baris pertama)
+    const headerRow = worksheet.getRow(1);
+    const headers = [];
+    headerRow.eachCell((cell, colNumber) => {
+      headers[colNumber - 1] = cell.text?.toString().trim().toLowerCase();
+    });
+
+    // Mapping kolom yang diharapkan
+    const requiredFields = ['article', 'komponen'];
+    const columnMap = {
+      article: headers.indexOf('article'),
+      komponen: headers.indexOf('komponen'),
+      noPo: headers.indexOf('nopo') !== -1 ? headers.indexOf('nopo') : headers.indexOf('no po'),
+      order: headers.indexOf('order'),
+      qty: headers.indexOf('qty'),
+      minStock: headers.indexOf('minstock') !== -1 ? headers.indexOf('minstock') : headers.indexOf('min stock'),
+      kolom: headers.indexOf('lokasi'),
+      category: headers.indexOf('kategori') !== -1 ? headers.indexOf('kategori') : headers.indexOf('category')
+    };
+
+    // Validasi header wajib
+    if (columnMap.article === -1 || columnMap.komponen === -1) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'Kolom wajib "article" dan "komponen" tidak ditemukan' });
+    }
+
+    const importedItems = [];
+    const errors = [];
+
+    // Mulai dari baris ke-2 (data)
+    for (let i = 2; i <= worksheet.rowCount; i++) {
+      const row = worksheet.getRow(i);
+      if (row.cellCount === 0) continue; // lewati baris kosong
+
+      const getCellValue = (idx) => {
+        if (idx === -1) return null;
+        const cell = row.getCell(idx + 1); // exceljs 1-based
+        return cell.text?.toString().trim() || null;
+      };
+
+      const article = getCellValue(columnMap.article);
+      const komponen = getCellValue(columnMap.komponen);
+      if (!article || !komponen) {
+        errors.push(`Baris ${i}: article atau komponen kosong`);
+        continue;
+      }
+
+      // Baca data lainnya
+      const noPo = getCellValue(columnMap.noPo);
+      const order = parseInt(getCellValue(columnMap.order)) || 0;
+      const qty = parseInt(getCellValue(columnMap.qty)) || 0;
+      const minStock = parseInt(getCellValue(columnMap.minStock)) || 10;
+      const kolom = getCellValue(columnMap.kolom);
+      const categoryName = getCellValue(columnMap.category);
+
+      // Cari kategori berdasarkan nama (case‑insensitive)
+      let categoryId = null;
+      if (categoryName) {
+        // Gunakan LOWER untuk case‑insensitive di SQLite
+        const category = await Category.findOne({
+          where: sequelize.where(
+            sequelize.fn('LOWER', sequelize.col('name')),
+            'LIKE',
+            categoryName.toLowerCase()
+          )
+        });
+        if (!category) {
+          errors.push(`Baris ${i}: Kategori "${categoryName}" tidak ditemukan`);
+          continue;
+        }
+        categoryId = category.id;
+      }
+
+      // Buat item
+      const item = await Item.create({
+        article,
+        komponen,
+        noPo,
+        order,
+        qty,
+        minStock,
+        kolom,
+        categoryId
+      }, { transaction });
+
+      // Catat history jika qty > 0
+      if (qty > 0) {
+        await QtyHistory.create({
+          itemId: item.id,
+          article: item.article,
+          oldQty: 0,
+          newQty: qty,
+          changeAmount: qty,
+          changeType: 'inbound',
+          notes: 'Import dari Excel',
+          updatedBy: req.session.username
+        }, { transaction });
+      }
+
+      importedItems.push(item);
+    }
+
+    if (errors.length > 0) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        error: 'Terdapat kesalahan pada data', 
+        details: errors 
+      });
+    }
+
+    await transaction.commit();
+    res.json({ 
+      success: true, 
+      message: `Berhasil mengimport ${importedItems.length} item`, 
+      count: importedItems.length 
+    });
+
+  } catch (err) {
+    await transaction.rollback();
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -871,7 +1016,6 @@ app.get('/api/items/:id/label-data', isAuthenticated, isAdminOrStaff, async (req
       include: [{ model: Category, attributes: ['name'] }]
     });
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    // MODIFIKASI: cek akses
     if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
@@ -891,7 +1035,7 @@ app.post('/api/labels/bulk', isAuthenticated, isAdminOrStaff, async (req, res) =
     if (!Array.isArray(itemIds) || itemIds.length === 0) return res.status(400).json({ message: 'Item IDs array is required' });
 
     const where = { id: itemIds };
-    addCategoryFilter(req, where); // MODIFIKASI: filter akses
+    addCategoryFilter(req, where);
 
     const items = await Item.findAll({
       where,
@@ -922,7 +1066,7 @@ app.post('/api/qr-scan', isAuthenticated, async (req, res) => {
     if (!qrData) return res.status(400).json({ message: 'QR data is required' });
 
     let where = {};
-    addCategoryFilter(req, where); // MODIFIKASI: tambahkan filter kategori
+    addCategoryFilter(req, where);
 
     if (type === 'full' || type === 'auto') {
       try {
@@ -999,7 +1143,6 @@ app.post('/api/qr-quick-update', isAuthenticated, async (req, res) => {
     if (!item) item = await Item.findByPk(itemId);
     if (!item) { await transaction.rollback(); return res.status(404).json({ message: 'Item tidak ditemukan' }); }
 
-    // MODIFIKASI: cek akses
     if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       await transaction.rollback();
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
@@ -1045,7 +1188,6 @@ app.get('/api/items/:id/qrcode', isAuthenticated, isAdminOrStaff, async (req, re
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    // MODIFIKASI: cek akses
     if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
@@ -1066,7 +1208,7 @@ app.post('/api/qrcode/batch', isAuthenticated, isAdminOrStaff, async (req, res) 
     if (!Array.isArray(itemIds) || itemIds.length === 0) return res.status(400).json({ message: 'Item IDs array is required' });
 
     const where = { id: itemIds };
-    addCategoryFilter(req, where); // MODIFIKASI
+    addCategoryFilter(req, where);
 
     const items = await Item.findAll({ where, order: [['kolom', 'ASC'], ['article', 'ASC']] });
 
@@ -1091,7 +1233,7 @@ app.get('/api/scan-logs', isAuthenticated, async (req, res) => {
     if (req.query.action) where.action = req.query.action;
 
     const itemWhere = {};
-    addCategoryFilter(req, itemWhere); // MODIFIKASI
+    addCategoryFilter(req, itemWhere);
 
     const logs = await ScanLog.findAll({
       where,
@@ -1128,7 +1270,6 @@ app.post('/api/inventory/count', isAuthenticated, async (req, res) => {
       const item = await Item.findByPk(itemId);
       if (!item) { results.push({ qrData, success: false, message: 'Item not found' }); continue; }
 
-      // MODIFIKASI: cek akses
       if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
         results.push({ qrData, success: false, message: 'No access to this item' });
         continue;
@@ -1161,7 +1302,6 @@ app.get('/api/items/:id/label-qrcode', isAuthenticated, isAdminOrStaff, async (r
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    // MODIFIKASI: cek akses
     if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
@@ -1198,13 +1338,14 @@ function determineChangeType(changeAmount, specifiedType) {
 const PORT = process.env.PORT || 2616;
 app.listen(PORT, () => {
   console.log(`========================================`);
-  console.log(`Warehouse Management System v5.3`);
+  console.log(`Warehouse Management System v5.4`);
   console.log(`QR Code otomatis di label: ENABLED`);
   console.log(`Role-based access control: ENABLED (admin/operator/staff) dengan pembatasan kategori`);
   console.log(`Manajemen User: ENABLED (admin only)`);
   console.log(`Manajemen Kategori: ENABLED (admin only)`);
   console.log(`Manajemen Lokasi: ENABLED (admin & staff)`);
   console.log(`Fitur Export: EXCEL (ExcelJS)`);
+  console.log(`Fitur Import: EXCEL (admin only)`); // <-- update
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Database: ${sequelize.config.storage}`);
   console.log(`Default users: admin/admin , operator/operator , staff/staff`);

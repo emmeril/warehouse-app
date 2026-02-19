@@ -1,4 +1,5 @@
-// MODIFIKASI: tambahkan penanganan categoryId di user, dan sesuaikan form item untuk staff
+// Warehouse Management App - Alpine.js v5.4
+// Menambahkan fitur Import Excel (admin only)
 
 function warehouseApp() {
     return {
@@ -90,7 +91,7 @@ function warehouseApp() {
         // ========== USER MANAGEMENT (ADMIN ONLY) ==========
         showUserModal: false,
         users: [],
-        newUser: { username: '', password: '', role: 'operator', categoryId: null }, // MODIFIKASI: tambah categoryId
+        newUser: { username: '', password: '', role: 'operator', categoryId: null },
         userLoading: false,
         userError: '',
 
@@ -275,7 +276,7 @@ function warehouseApp() {
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Login gagal');
-                this.user = data.user; // user sekarang punya categoryId
+                this.user = data.user;
                 this.loginData = { username: '', password: '' };
                 this.showLoginModal = false;
                 await this.loadInitialData();
@@ -335,7 +336,7 @@ function warehouseApp() {
                 const res = await this.fetchWithAuth('/api/users', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(this.newUser) // kirim categoryId
+                    body: JSON.stringify(this.newUser)
                 });
                 if (!res.ok) {
                     const err = await res.json();
@@ -499,8 +500,45 @@ function warehouseApp() {
             } catch (err) {}
         },
 
+        // ========== IMPORT EXCEL (ADMIN ONLY) ==========
+        importExcel() {
+            document.getElementById('excelImportInput').click();
+        },
+
+        async handleExcelImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Reset input agar bisa memilih file yang sama lagi
+            event.target.value = '';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            this.showNotificationMessage('Mengupload dan memproses file...', 'info');
+            try {
+                const res = await this.fetchWithAuth('/api/import/excel', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await res.json();
+                if (!res.ok) {
+                    let errorMsg = result.error || 'Gagal import';
+                    if (result.details) {
+                        errorMsg += '\n' + result.details.join('\n');
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                this.showNotificationMessage(result.message, 'success');
+                await this.loadItems(); // refresh data
+            } catch (err) {
+                this.showNotificationMessage(err.message, 'error');
+            }
+        },
+
         // ========== QR SCANNER ==========
-        // ... (tidak berubah, tetap sama) ...
         async checkCameraAvailability() {
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
@@ -636,7 +674,7 @@ function warehouseApp() {
         // ========== CRUD ITEM ==========
         openAddItemModal() {
             if (!this.canManageItems) return;
-            this.resetForm(); // resetForm sudah menyesuaikan categoryId
+            this.resetForm();
             this.showItemModal = true;
         },
 
@@ -679,7 +717,6 @@ function warehouseApp() {
 
         duplicateItem(item) { this.currentItem = { ...item, id: null, article: item.article + ' (Copy)', categoryId: item.categoryId }; document.querySelector('form')?.scrollIntoView({ behavior: 'smooth' }); },
 
-        // MODIFIKASI: resetForm dengan categoryId default untuk staff
         resetForm() {
             this.currentItem = { 
                 id: null, 
@@ -709,7 +746,6 @@ function warehouseApp() {
         },
 
         // ========== DETAIL UPDATE QTY ==========
-        // ... (tidak berubah signifikan, tapi pastikan akses dicek di server) ...
         openQtyDetailModal(item) {
             this.selectedItemForQtyUpdate = { ...item };
             this.qtyUpdateDetail = { method: 'adjust', newQty: item.qty, adjustment: 0, changeType: 'adjustment', notes: '' };
@@ -825,15 +861,14 @@ function warehouseApp() {
             if (!this.canManageItems) return;
             this.selectedItemForLabel = { ...item };
             this.labelCopies = 1;
-            this.labelSize = 'large';          // dipaksa besar
-            this.labelShowQR = true;           // QR selalu tampil
-            this.labelShowBarcode = true;      // barcode selalu tampil
+            this.labelSize = 'large';
+            this.labelShowQR = true;
+            this.labelShowBarcode = true;
             this.showLabelModal = true;
         },
 
         async printLabels() {
             if (!this.selectedItemForLabel) return;
-            // paksa ke ukuran besar dan detail lengkap
             this.labelSize = 'large';
             this.labelShowQR = true;
             this.labelShowBarcode = true;
@@ -856,7 +891,7 @@ function warehouseApp() {
                     small: { width: '2in', height: '1in', fontSize: '8px' },
                     medium: { width: '3in', height: '2in', fontSize: '10px' },
                     large: { width: '4in', height: '3in', fontSize: '12px' }
-                }[this.labelSize];  // sekarang selalu large
+                }[this.labelSize];
 
                 const qrSize = {
                     small: '0.7in',
@@ -890,7 +925,7 @@ function warehouseApp() {
                                     <p style="margin: 0.03in 0; color: #555;">${labelData.komponen}</p>
                                     <p style="margin: 0.02in 0;">ID: ${labelData.id} | Lokasi: ${labelData.kolom || '-'}</p>
                                     <p style="margin: 0.02in 0;">Kategori: ${labelData.category || '-'}</p>
-                                     <p style="margin: 0.02in 0;">Tanggal: ${new Date().toLocaleDateString('id-ID')}</p>
+                                    <p style="margin: 0.02in 0;">Tanggal: ${new Date().toLocaleDateString('id-ID')}</p>
                                     <p style="margin: 0.02in 0;">PO: ${labelData.noPo || '-'} | Stok: ${labelData.qty} | Min: ${labelData.minStock}</p>
                                 </div>
                                 <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
@@ -948,7 +983,7 @@ function warehouseApp() {
                             </div>
                             <div class="label-container">${labelsHTML}</div>
                             <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
-                                <p>Warehouse Management System v5.3 - Label</p>
+                                <p>Warehouse Management System v5.4 - Label</p>
                                 <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
                             </div>
                             <script>
@@ -970,8 +1005,8 @@ function warehouseApp() {
             if (!this.canManageItems) return;
             this.selectedItemsForBulkLabel = [];
             this.bulkLabelCopies = 1;
-            this.bulkLabelFormat = 'detailed';   // selalu detailed
-            this.bulkLabelSize = 'large';        // selalu besar
+            this.bulkLabelFormat = 'detailed';
+            this.bulkLabelSize = 'large';
             this.showBulkLabelModal = true;
         },
 
@@ -984,7 +1019,6 @@ function warehouseApp() {
         },
 
         async printBulkLabels() {
-            // paksa format dan ukuran
             this.bulkLabelSize = 'large';
             this.bulkLabelFormat = 'detailed';
 
@@ -1102,7 +1136,7 @@ function warehouseApp() {
                             </div>
                             <div class="label-container">${labelsHTML}</div>
                             <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
-                                <p>Warehouse Management System v5.3 - Label Massal</p>
+                                <p>Warehouse Management System v5.4 - Label Massal</p>
                                 <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
                             </div>
                             <script>
@@ -1223,10 +1257,10 @@ function warehouseApp() {
         },
 
         viewHistoryFromScan() {
-    if (this.scannedItem) {
-        this.openQtyHistoryModal(this.scannedItem);
-    }
-},
+            if (this.scannedItem) {
+                this.openQtyHistoryModal(this.scannedItem);
+            }
+        },
 
         showNotificationMessage(message, type = 'success') {
             this.notificationMessage = message;
