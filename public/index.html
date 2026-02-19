@@ -1159,7 +1159,7 @@
                             <option value="staff">Staff</option>
                         </select>
                         <select x-model="newUser.categoryId" class="px-4 py-2.5 border border-slate-200 rounded-xl bg-white">
-                            <option value="">-- Tanpa Kategori (Akses semua) --</option>
+                            <option value="">Semua</option>
                             <template x-for="cat in categories" :key="cat.id">
                                 <option :value="cat.id" x-text="cat.name"></option>
                             </template>
