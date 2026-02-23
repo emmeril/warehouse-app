@@ -125,12 +125,10 @@ function warehouseApp() {
         get filteredItems() {
             let filtered = this.items;
 
-            // Filter berdasarkan low stock (tombol khusus)
             if (this.showLowStock) {
                 filtered = filtered.filter(item => item.qty <= item.minStock);
             }
 
-            // Filter berdasarkan pencarian cepat di atas tabel
             if (this.tableSearch) {
                 const search = this.tableSearch.toLowerCase();
                 filtered = filtered.filter(item => 
@@ -142,7 +140,6 @@ function warehouseApp() {
                 );
             }
 
-            // Filter berdasarkan sidebar (client-side)
             if (this.filter.search) {
                 const s = this.filter.search.toLowerCase();
                 filtered = filtered.filter(item => 
@@ -509,7 +506,6 @@ function warehouseApp() {
             const file = event.target.files[0];
             if (!file) return;
 
-            // Reset input agar bisa memilih file yang sama lagi
             event.target.value = '';
 
             const formData = new FormData();
@@ -532,7 +528,7 @@ function warehouseApp() {
                 }
 
                 this.showNotificationMessage(result.message, 'success');
-                await this.loadItems(); // refresh data
+                await this.loadItems();
             } catch (err) {
                 this.showNotificationMessage(err.message, 'error');
             }

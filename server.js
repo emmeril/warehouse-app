@@ -10,7 +10,7 @@ const path = require('path');
 const QRCode = require('qrcode');
 const SQLiteStore = require('connect-sqlite3')(session);
 const ExcelJS = require('exceljs');
-const multer = require('multer'); // <-- TAMBAHAN
+const multer = require('multer');
 
 const app = express();
 app.use(bodyParser.json());
@@ -819,9 +819,8 @@ app.post('/api/import/csv', isAuthenticated, isAdminOrStaff, express.text({ type
 });
 
 // ========== IMPORT EXCEL (ADMIN ONLY) ==========
-// Konfigurasi multer
 const storage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   fileFilter: (req, file, cb) => {
     const allowed = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
@@ -843,21 +842,19 @@ app.post('/api/import/excel', isAuthenticated, isAdmin, upload.single('file'), a
   try {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(req.file.buffer);
-    const worksheet = workbook.getWorksheet(1); // sheet pertama
+    const worksheet = workbook.getWorksheet(1);
 
     if (!worksheet) {
       await transaction.rollback();
       return res.status(400).json({ error: 'Sheet tidak ditemukan' });
     }
 
-    // Ambil header (baris pertama)
     const headerRow = worksheet.getRow(1);
     const headers = [];
     headerRow.eachCell((cell, colNumber) => {
       headers[colNumber - 1] = cell.text?.toString().trim().toLowerCase();
     });
 
-    // Mapping kolom yang diharapkan
     const requiredFields = ['article', 'komponen'];
     const columnMap = {
       article: headers.indexOf('article'),
@@ -870,7 +867,6 @@ app.post('/api/import/excel', isAuthenticated, isAdmin, upload.single('file'), a
       category: headers.indexOf('kategori') !== -1 ? headers.indexOf('kategori') : headers.indexOf('category')
     };
 
-    // Validasi header wajib
     if (columnMap.article === -1 || columnMap.komponen === -1) {
       await transaction.rollback();
       return res.status(400).json({ error: 'Kolom wajib "article" dan "komponen" tidak ditemukan' });
@@ -879,14 +875,13 @@ app.post('/api/import/excel', isAuthenticated, isAdmin, upload.single('file'), a
     const importedItems = [];
     const errors = [];
 
-    // Mulai dari baris ke-2 (data)
     for (let i = 2; i <= worksheet.rowCount; i++) {
       const row = worksheet.getRow(i);
-      if (row.cellCount === 0) continue; // lewati baris kosong
+      if (row.cellCount === 0) continue;
 
       const getCellValue = (idx) => {
         if (idx === -1) return null;
-        const cell = row.getCell(idx + 1); // exceljs 1-based
+        const cell = row.getCell(idx + 1);
         return cell.text?.toString().trim() || null;
       };
 
@@ -897,7 +892,6 @@ app.post('/api/import/excel', isAuthenticated, isAdmin, upload.single('file'), a
         continue;
       }
 
-      // Baca data lainnya
       const noPo = getCellValue(columnMap.noPo);
       const order = parseInt(getCellValue(columnMap.order)) || 0;
       const qty = parseInt(getCellValue(columnMap.qty)) || 0;
@@ -905,10 +899,8 @@ app.post('/api/import/excel', isAuthenticated, isAdmin, upload.single('file'), a
       const kolom = getCellValue(columnMap.kolom);
       const categoryName = getCellValue(columnMap.category);
 
-      // Cari kategori berdasarkan nama (case‑insensitive)
       let categoryId = null;
       if (categoryName) {
-        // Gunakan LOWER untuk case‑insensitive di SQLite
         const category = await Category.findOne({
           where: sequelize.where(
             sequelize.fn('LOWER', sequelize.col('name')),
@@ -923,7 +915,6 @@ app.post('/api/import/excel', isAuthenticated, isAdmin, upload.single('file'), a
         categoryId = category.id;
       }
 
-      // Buat item
       const item = await Item.create({
         article,
         komponen,
@@ -935,7 +926,6 @@ app.post('/api/import/excel', isAuthenticated, isAdmin, upload.single('file'), a
         categoryId
       }, { transaction });
 
-      // Catat history jika qty > 0
       if (qty > 0) {
         await QtyHistory.create({
           itemId: item.id,
@@ -954,17 +944,17 @@ app.post('/api/import/excel', isAuthenticated, isAdmin, upload.single('file'), a
 
     if (errors.length > 0) {
       await transaction.rollback();
-      return res.status(400).json({ 
-        error: 'Terdapat kesalahan pada data', 
-        details: errors 
+      return res.status(400).json({
+        error: 'Terdapat kesalahan pada data',
+        details: errors
       });
     }
 
     await transaction.commit();
-    res.json({ 
-      success: true, 
-      message: `Berhasil mengimport ${importedItems.length} item`, 
-      count: importedItems.length 
+    res.json({
+      success: true,
+      message: `Berhasil mengimport ${importedItems.length} item`,
+      count: importedItems.length
     });
 
   } catch (err) {
@@ -1345,7 +1335,7 @@ app.listen(PORT, () => {
   console.log(`Manajemen Kategori: ENABLED (admin only)`);
   console.log(`Manajemen Lokasi: ENABLED (admin & staff)`);
   console.log(`Fitur Export: EXCEL (ExcelJS)`);
-  console.log(`Fitur Import: EXCEL (admin only)`); // <-- update
+  console.log(`Fitur Import: EXCEL (admin only)`);
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Database: ${sequelize.config.storage}`);
   console.log(`Default users: admin/admin , operator/operator , staff/staff`);
