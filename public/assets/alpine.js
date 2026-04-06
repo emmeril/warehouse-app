@@ -39,6 +39,7 @@ function warehouseApp() {
         qtyUpdateDetail: { method: 'adjust', newQty: 0, adjustment: 0, changeType: 'adjustment', notes: '' },
         bulkUpdateData: { adjustment: 0, notes: '' },
         selectedItemsForBulk: [],
+        bulkAssignCategoryId: '',
         qtyHistory: [],
         recentActivities: [],
         recentScans: [],
@@ -155,7 +156,11 @@ function warehouseApp() {
                 filtered = filtered.filter(item => item.komponen === this.filter.komponen);
             }
             if (this.filter.categoryId) {
-                filtered = filtered.filter(item => item.categoryId == this.filter.categoryId);
+                if (this.filter.categoryId === 'uncategorized') {
+                    filtered = filtered.filter(item => item.categoryId === null || item.categoryId === undefined);
+                } else {
+                    filtered = filtered.filter(item => item.categoryId == this.filter.categoryId);
+                }
             }
             if (this.filter.noPo) {
                 const np = this.filter.noPo.toLowerCase();
@@ -1023,6 +1028,55 @@ function warehouseApp() {
             }
         },
 
+        toggleSelectAllBulk() {
+            if (this.selectedItemsForBulk.length === this.items.length) {
+                this.selectedItemsForBulk = [];
+            } else {
+                this.selectedItemsForBulk = this.items.map(item => item.id);
+            }
+        },
+
+        async bulkAssignCategory() {
+            if (!this.isAdmin) return;
+            if (this.selectedItemsForBulk.length === 0) {
+                this.showNotificationMessage('Pilih minimal satu item', 'error');
+                return;
+            }
+            if (this.bulkAssignCategoryId === '') {
+                this.showNotificationMessage('Pilih kategori tujuan terlebih dahulu', 'error');
+                return;
+            }
+
+            const selectedCount = this.selectedItemsForBulk.length;
+            const categoryLabel = this.bulkAssignCategoryId === 'uncategorized'
+                ? 'Tanpa Kategori'
+                : (this.categories.find(c => c.id == this.bulkAssignCategoryId)?.name || 'kategori terpilih');
+
+            if (!confirm(`Terapkan kategori "${categoryLabel}" ke ${selectedCount} item?`)) return;
+
+            try {
+                const res = await this.fetchWithAuth('/api/items/bulk/assign-category', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        itemIds: this.selectedItemsForBulk,
+                        categoryId: this.bulkAssignCategoryId
+                    })
+                });
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.error || 'Gagal menerapkan kategori');
+
+                this.selectedItemsForBulk = [];
+                await this.loadItems();
+                await this.loadStats();
+                this.showNotificationMessage(result.message || 'Kategori berhasil diperbarui', 'success');
+            } catch (err) {
+                if (err.message !== 'Unauthorized') {
+                    this.showNotificationMessage(err.message, 'error');
+                }
+            }
+        },
+
         async printBulkLabels() {
             this.bulkLabelSize = 'large';
             this.bulkLabelFormat = 'detailed';
@@ -1199,6 +1253,7 @@ function warehouseApp() {
             this.showLowStock = false;
             this.tableSearch = '';
             this.currentPage = 1;
+            this.selectedItemsForBulk = [];
             this.loadItems();
         },
 

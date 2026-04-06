@@ -492,7 +492,11 @@ app.get('/api/items', isAuthenticated, async (req, res) => {
     const andConditions = [];
     if (req.query.kolom) where.kolom = req.query.kolom;
     if (req.query.categoryId && req.session.role === 'admin') {
-      where.categoryId = parseInt(req.query.categoryId, 10);
+      if (req.query.categoryId === 'uncategorized') {
+        where.categoryId = { [Op.is]: null };
+      } else {
+        where.categoryId = parseInt(req.query.categoryId, 10);
+      }
     }
     if (req.query.noPo) {
       where.noPo = { [Op.like]: `%${req.query.noPo}%` };
@@ -833,6 +837,52 @@ app.post('/api/items/bulk/update-qty', isAuthenticated, isAdminOrStaff, async (r
     }
     await transaction.commit();
     res.json({ success: true, updatedCount: results.length, results });
+  } catch (err) {
+    await transaction.rollback();
+    respondWithError(res, err);
+  }
+});
+
+app.post('/api/items/bulk/assign-category', isAuthenticated, isAdmin, async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { itemIds, categoryId } = req.body;
+    if (!Array.isArray(itemIds) || itemIds.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'itemIds wajib berupa array dan tidak boleh kosong' });
+    }
+
+    let nextCategoryId = null;
+    if (categoryId !== null && categoryId !== undefined && categoryId !== '' && categoryId !== 'uncategorized') {
+      nextCategoryId = parseIntegerField(categoryId, 'categoryId', { min: 1 });
+      const category = await Category.findByPk(nextCategoryId);
+      if (!category) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Category not found' });
+      }
+    }
+
+    const uniqueItemIds = [...new Set(itemIds.map(id => parseInt(id, 10)).filter(Number.isInteger))];
+    if (uniqueItemIds.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'itemIds tidak valid' });
+    }
+
+    const [updatedCount] = await Item.update(
+      { categoryId: nextCategoryId },
+      {
+        where: { id: { [Op.in]: uniqueItemIds } },
+        transaction
+      }
+    );
+
+    await transaction.commit();
+    res.json({
+      success: true,
+      updatedCount,
+      categoryId: nextCategoryId,
+      message: nextCategoryId ? `Kategori berhasil diterapkan ke ${updatedCount} item` : `Kategori berhasil dikosongkan dari ${updatedCount} item`
+    });
   } catch (err) {
     await transaction.rollback();
     respondWithError(res, err);
