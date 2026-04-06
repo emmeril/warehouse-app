@@ -730,6 +730,13 @@ app.get('/api/dashboard/stats', isAuthenticated, async (req, res) => {
   try {
     const itemWhere = {};
     addCategoryFilter(req, itemWhere);
+    if (req.query.categoryId && req.session.role === 'admin') {
+      if (req.query.categoryId === 'uncategorized') {
+        itemWhere.categoryId = { [Op.is]: null };
+      } else {
+        itemWhere.categoryId = parseInt(req.query.categoryId, 10);
+      }
+    }
 
     const totalItems = await Item.count({ where: itemWhere });
     const totalQty = await Item.sum('qty', { where: itemWhere }) || 0;

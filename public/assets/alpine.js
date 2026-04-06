@@ -224,6 +224,11 @@ function warehouseApp() {
         get uniqueKomponenList() {
             return [...new Set(this.items.map(item => item.komponen).filter(Boolean))].sort();
         },
+        get activeCategoryFilterLabel() {
+            if (!this.filter.categoryId) return '';
+            if (this.filter.categoryId === 'uncategorized') return 'Tanpa Kategori';
+            return this.categories.find(c => c.id == this.filter.categoryId)?.name || 'kategori terpilih';
+        },
         get lowStockCount() {
             return this.items.filter(item => item.qty <= item.minStock).length;
         },
@@ -477,7 +482,10 @@ function warehouseApp() {
         async loadStats() {
             if (!this.isAuthenticated) return;
             try {
-                const res = await this.fetchWithAuth('/api/dashboard/stats');
+                const params = new URLSearchParams();
+                if (this.filter.categoryId) params.set('categoryId', this.filter.categoryId);
+                const queryString = params.toString();
+                const res = await this.fetchWithAuth(queryString ? `/api/dashboard/stats?${queryString}` : '/api/dashboard/stats');
                 this.stats = await res.json();
                 this.recentActivities = this.stats.recentActivities || [];
                 this.recentScans = this.stats.recentScans || [];
@@ -1237,6 +1245,7 @@ function warehouseApp() {
         applyFilter() {
             this.currentPage = 1;
             this.loadItems();
+            this.loadStats();
         },
 
         clearFilter() {
@@ -1255,6 +1264,7 @@ function warehouseApp() {
             this.currentPage = 1;
             this.selectedItemsForBulk = [];
             this.loadItems();
+            this.loadStats();
         },
 
         sortTable(field) {
