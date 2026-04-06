@@ -156,11 +156,7 @@ function warehouseApp() {
                 filtered = filtered.filter(item => item.komponen === this.filter.komponen);
             }
             if (this.filter.categoryId) {
-                if (this.filter.categoryId === 'uncategorized') {
-                    filtered = filtered.filter(item => item.categoryId === null || item.categoryId === undefined);
-                } else {
-                    filtered = filtered.filter(item => item.categoryId == this.filter.categoryId);
-                }
+                filtered = filtered.filter(item => item.categoryId == this.filter.categoryId);
             }
             if (this.filter.noPo) {
                 const np = this.filter.noPo.toLowerCase();
@@ -226,7 +222,6 @@ function warehouseApp() {
         },
         get activeCategoryFilterLabel() {
             if (!this.filter.categoryId) return '';
-            if (this.filter.categoryId === 'uncategorized') return 'Tanpa Kategori';
             return this.categories.find(c => c.id == this.filter.categoryId)?.name || 'kategori terpilih';
         },
         get lowStockCount() {
@@ -1056,9 +1051,7 @@ function warehouseApp() {
             }
 
             const selectedCount = this.selectedItemsForBulk.length;
-            const categoryLabel = this.bulkAssignCategoryId === 'uncategorized'
-                ? 'Tanpa Kategori'
-                : (this.categories.find(c => c.id == this.bulkAssignCategoryId)?.name || 'kategori terpilih');
+            const categoryLabel = this.categories.find(c => c.id == this.bulkAssignCategoryId)?.name || 'kategori terpilih';
 
             if (!confirm(`Terapkan kategori "${categoryLabel}" ke ${selectedCount} item?`)) return;
 

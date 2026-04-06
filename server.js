@@ -492,11 +492,7 @@ app.get('/api/items', isAuthenticated, async (req, res) => {
     const andConditions = [];
     if (req.query.kolom) where.kolom = req.query.kolom;
     if (req.query.categoryId && req.session.role === 'admin') {
-      if (req.query.categoryId === 'uncategorized') {
-        where.categoryId = { [Op.is]: null };
-      } else {
-        where.categoryId = parseInt(req.query.categoryId, 10);
-      }
+      where.categoryId = parseInt(req.query.categoryId, 10);
     }
     if (req.query.noPo) {
       where.noPo = { [Op.like]: `%${req.query.noPo}%` };
@@ -731,11 +727,7 @@ app.get('/api/dashboard/stats', isAuthenticated, async (req, res) => {
     const itemWhere = {};
     addCategoryFilter(req, itemWhere);
     if (req.query.categoryId && req.session.role === 'admin') {
-      if (req.query.categoryId === 'uncategorized') {
-        itemWhere.categoryId = { [Op.is]: null };
-      } else {
-        itemWhere.categoryId = parseInt(req.query.categoryId, 10);
-      }
+      itemWhere.categoryId = parseInt(req.query.categoryId, 10);
     }
 
     const totalItems = await Item.count({ where: itemWhere });
@@ -860,7 +852,7 @@ app.post('/api/items/bulk/assign-category', isAuthenticated, isAdmin, async (req
     }
 
     let nextCategoryId = null;
-    if (categoryId !== null && categoryId !== undefined && categoryId !== '' && categoryId !== 'uncategorized') {
+    if (categoryId !== null && categoryId !== undefined && categoryId !== '') {
       nextCategoryId = parseIntegerField(categoryId, 'categoryId', { min: 1 });
       const category = await Category.findByPk(nextCategoryId);
       if (!category) {
