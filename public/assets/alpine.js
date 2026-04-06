@@ -203,6 +203,22 @@ function warehouseApp() {
             const start = (this.currentPage - 1) * this.itemsPerPage;
             return items.slice(start, start + this.itemsPerPage);
         },
+        get currentPageItemIds() {
+            return this.filteredAndSortedItems.map(item => Number(item.id));
+        },
+        get filteredItemIds() {
+            return this.filteredItems.map(item => Number(item.id));
+        },
+        get isCurrentPageFullySelected() {
+            return this.currentPageItemIds.length > 0 && this.currentPageItemIds.every(id => this.selectedItemsForBulk.includes(id));
+        },
+        get isAllFilteredItemsSelected() {
+            return this.filteredItemIds.length > 0 && this.filteredItemIds.every(id => this.selectedItemsForBulk.includes(id));
+        },
+        get selectedFilteredItemsCount() {
+            const filteredSet = new Set(this.filteredItemIds);
+            return this.selectedItemsForBulk.filter(id => filteredSet.has(Number(id))).length;
+        },
         get totalQty() {
             return this.items.reduce((sum, item) => sum + parseInt(item.qty || 0), 0);
         },
@@ -1036,11 +1052,25 @@ function warehouseApp() {
         },
 
         toggleSelectAllBulk() {
-            if (this.selectedItemsForBulk.length === this.items.length) {
-                this.selectedItemsForBulk = [];
+            if (this.isCurrentPageFullySelected) {
+                const currentPageSet = new Set(this.currentPageItemIds);
+                this.selectedItemsForBulk = this.selectedItemsForBulk.filter(id => !currentPageSet.has(Number(id)));
             } else {
-                this.selectedItemsForBulk = this.items.map(item => item.id);
+                const combined = new Set([
+                    ...this.selectedItemsForBulk.map(id => Number(id)),
+                    ...this.currentPageItemIds
+                ]);
+                this.selectedItemsForBulk = [...combined];
             }
+        },
+
+        selectAllFilteredItems() {
+            if (!this.isAdmin) return;
+            this.selectedItemsForBulk = [...new Set(this.filteredItemIds)];
+        },
+
+        clearBulkSelection() {
+            this.selectedItemsForBulk = [];
         },
 
         async bulkAssignCategory() {

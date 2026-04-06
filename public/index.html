@@ -349,6 +349,12 @@
                                     <button @click="bulkDeleteItems" :disabled="selectedItemsForBulk.length === 0" class="bg-red-50 border border-red-200 hover:bg-red-100 text-red-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
                                         <i class="fas fa-trash mr-1"></i> Hapus Massal
                                     </button>
+                                    <button @click="selectAllFilteredItems" :disabled="filteredItems.length === 0 || isAllFilteredItemsSelected" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
+                                        <i class="fas fa-check-double mr-1"></i> Pilih Semua Item
+                                    </button>
+                                    <button @click="clearBulkSelection" :disabled="selectedItemsForBulk.length === 0" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
+                                        <i class="fas fa-times-circle mr-1"></i> Kosongkan Pilihan
+                                    </button>
                                 </div>
                             </template>
                             <template x-if="canManageItems">
@@ -366,7 +372,7 @@
                                 <tr>
                                     <template x-if="isAdmin">
                                         <th class="px-4 py-3 text-left">
-                                            <input type="checkbox" @click="toggleSelectAllBulk" :checked="selectedItemsForBulk.length === items.length && items.length > 0" class="rounded">
+                                            <input type="checkbox" @click="toggleSelectAllBulk" :checked="isCurrentPageFullySelected" class="rounded">
                                         </th>
                                     </template>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer" @click="sortTable('id')">ID <i class="fas fa-sort ml-1 text-slate-400"></i></th>
@@ -459,7 +465,15 @@
                         </div>
                         <div class="flex items-center gap-4">
                             <template x-if="isAdmin">
-                                <span class="text-sm text-slate-600"><span class="font-semibold text-indigo-600" x-text="selectedItemsForBulk.length"></span> terpilih</span>
+                                <span class="text-sm text-slate-600">
+                                    <span class="font-semibold text-indigo-600" x-text="selectedFilteredItemsCount"></span>
+                                    dari
+                                    <span class="font-semibold text-slate-700" x-text="filteredItems.length"></span>
+                                    item filter terpilih
+                                    <span x-show="selectedItemsForBulk.length > selectedFilteredItemsCount" class="text-slate-400">
+                                        (total <span x-text="selectedItemsForBulk.length"></span>)
+                                    </span>
+                                </span>
                             </template>
                             <span class="text-sm text-slate-600"><span class="font-semibold text-red-600" x-text="lowStockCount"></span> stok rendah</span>
                             <div class="flex gap-1">
