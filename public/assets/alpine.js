@@ -206,6 +206,8 @@ function warehouseApp() {
             return this.items.reduce((sum, item) => sum + parseInt(item.qty || 0), 0);
         },
         get totalOrder() {
+            const requestedQty = parseInt(this.stats?.totalRequestedQty ?? this.stats?.totalOrder ?? 0);
+            if (requestedQty > 0) return requestedQty;
             return this.items.reduce((sum, item) => sum + parseInt(item.order || 0), 0);
         },
         get uniqueLocations() {
@@ -467,6 +469,8 @@ function warehouseApp() {
             try {
                 const res = await this.fetchWithAuth('/api/dashboard/stats');
                 this.stats = await res.json();
+                this.recentActivities = this.stats.recentActivities || [];
+                this.recentScans = this.stats.recentScans || [];
                 const today = new Date().toDateString();
                 this.todayScanCount = this.recentScans.filter(scan => 
                     new Date(scan.createdAt).toDateString() === today
