@@ -39,7 +39,6 @@ function warehouseApp() {
         qtyUpdateDetail: { method: 'adjust', newQty: 0, adjustment: 0, changeType: 'adjustment', notes: '' },
         bulkUpdateData: { adjustment: 0, notes: '' },
         selectedItemsForBulk: [],
-        bulkAssignCategoryId: '',
         qtyHistory: [],
         recentActivities: [],
         recentScans: [],
@@ -203,34 +202,10 @@ function warehouseApp() {
             const start = (this.currentPage - 1) * this.itemsPerPage;
             return items.slice(start, start + this.itemsPerPage);
         },
-        get currentPageItemIds() {
-            return this.filteredAndSortedItems.map(item => Number(item.id));
-        },
-        get filteredItemIds() {
-            return this.filteredItems.map(item => Number(item.id));
-        },
-        get normalizedSelectedItemsForBulk() {
-            return [...new Set(this.selectedItemsForBulk.map(id => Number(id)).filter(Number.isInteger))];
-        },
-        isItemSelectedForBulk(itemId) {
-            return this.normalizedSelectedItemsForBulk.includes(Number(itemId));
-        },
-        get isCurrentPageFullySelected() {
-            return this.currentPageItemIds.length > 0 && this.currentPageItemIds.every(id => this.normalizedSelectedItemsForBulk.includes(id));
-        },
-        get isAllFilteredItemsSelected() {
-            return this.filteredItemIds.length > 0 && this.filteredItemIds.every(id => this.normalizedSelectedItemsForBulk.includes(id));
-        },
-        get selectedFilteredItemsCount() {
-            const filteredSet = new Set(this.filteredItemIds);
-            return this.normalizedSelectedItemsForBulk.filter(id => filteredSet.has(id)).length;
-        },
         get totalQty() {
             return this.items.reduce((sum, item) => sum + parseInt(item.qty || 0), 0);
         },
         get totalOrder() {
-            const requestedQty = parseInt(this.stats?.totalRequestedQty ?? this.stats?.totalOrder ?? 0);
-            if (requestedQty > 0) return requestedQty;
             return this.items.reduce((sum, item) => sum + parseInt(item.order || 0), 0);
         },
         get uniqueLocations() {
@@ -241,10 +216,6 @@ function warehouseApp() {
         },
         get uniqueKomponenList() {
             return [...new Set(this.items.map(item => item.komponen).filter(Boolean))].sort();
-        },
-        get activeCategoryFilterLabel() {
-            if (!this.filter.categoryId) return '';
-            return this.categories.find(c => c.id == this.filter.categoryId)?.name || 'kategori terpilih';
         },
         get lowStockCount() {
             return this.items.filter(item => item.qty <= item.minStock).length;
@@ -472,23 +443,15 @@ function warehouseApp() {
             this.loading = true;
             this.error = '';
             try {
-                const params = new URLSearchParams();
-                if (this.filter.kolom) params.set('kolom', this.filter.kolom);
-                if (this.filter.komponen) params.set('komponen', this.filter.komponen);
-                if (this.filter.search) params.set('search', this.filter.search);
-                if (this.filter.categoryId) params.set('categoryId', this.filter.categoryId);
-                if (this.filter.stockStatus) params.set('stockStatus', this.filter.stockStatus);
-                if (this.filter.noPo) params.set('noPo', this.filter.noPo);
-                if (this.filter.minQty !== null && this.filter.minQty !== '') params.set('minQty', this.filter.minQty);
-                if (this.filter.maxQty !== null && this.filter.maxQty !== '') params.set('maxQty', this.filter.maxQty);
-                const queryString = params.toString();
-                const url = queryString ? `/api/items?${queryString}` : '/api/items';
+                let url = '/api/items';
+                const params = [];
+                if (this.filter.kolom) params.push(`kolom=${encodeURIComponent(this.filter.kolom)}`);
+                if (this.filter.komponen) params.push(`komponen=${encodeURIComponent(this.filter.komponen)}`);
+                if (this.filter.search) params.push(`search=${encodeURIComponent(this.filter.search)}`);
+                if (params.length) url += '?' + params.join('&');
                 const response = await this.fetchWithAuth(url);
                 const data = await response.json();
                 this.items = Array.isArray(data) ? data : data.items || [];
-                const availableItemIds = new Set(this.items.map(item => Number(item.id)));
-                this.selectedItemsForBulk = this.normalizedSelectedItemsForBulk
-                    .filter(id => availableItemIds.has(id));
             } catch (err) {
                 if (err.message !== 'Unauthorized') {
                     this.error = err.message;
@@ -502,13 +465,8 @@ function warehouseApp() {
         async loadStats() {
             if (!this.isAuthenticated) return;
             try {
-                const params = new URLSearchParams();
-                if (this.filter.categoryId) params.set('categoryId', this.filter.categoryId);
-                const queryString = params.toString();
-                const res = await this.fetchWithAuth(queryString ? `/api/dashboard/stats?${queryString}` : '/api/dashboard/stats');
+                const res = await this.fetchWithAuth('/api/dashboard/stats');
                 this.stats = await res.json();
-                this.recentActivities = this.stats.recentActivities || [];
-                this.recentScans = this.stats.recentScans || [];
                 const today = new Date().toDateString();
                 this.todayScanCount = this.recentScans.filter(scan => 
                     new Date(scan.createdAt).toDateString() === today
@@ -1056,121 +1014,6 @@ function warehouseApp() {
             }
         },
 
-        toggleSelectAllBulk() {
-            if (this.isCurrentPageFullySelected) {
-                const currentPageSet = new Set(this.currentPageItemIds);
-                this.selectedItemsForBulk = this.normalizedSelectedItemsForBulk.filter(id => !currentPageSet.has(id));
-            } else {
-                const combined = new Set([
-                    ...this.normalizedSelectedItemsForBulk,
-                    ...this.currentPageItemIds
-                ]);
-                this.selectedItemsForBulk = [...combined];
-            }
-        },
-
-        toggleBulkItemSelection(itemId, isChecked) {
-            const normalizedId = Number(itemId);
-            const currentSelection = new Set(this.normalizedSelectedItemsForBulk);
-            if (isChecked) currentSelection.add(normalizedId);
-            else currentSelection.delete(normalizedId);
-            this.selectedItemsForBulk = [...currentSelection];
-        },
-
-        selectAllFilteredItems() {
-            if (!this.isAdmin) return;
-            this.selectedItemsForBulk = [...new Set(this.filteredItemIds)];
-        },
-
-        clearBulkSelection() {
-            this.selectedItemsForBulk = [];
-        },
-
-        async bulkAssignCategory() {
-            if (!this.isAdmin) return;
-            const selectedItemIds = this.normalizedSelectedItemsForBulk;
-            if (selectedItemIds.length === 0) {
-                this.showNotificationMessage('Pilih minimal satu item', 'error');
-                return;
-            }
-            if (this.bulkAssignCategoryId === '') {
-                this.showNotificationMessage('Pilih kategori tujuan terlebih dahulu', 'error');
-                return;
-            }
-
-            const selectedCount = selectedItemIds.length;
-            const categoryLabel = this.categories.find(c => c.id == this.bulkAssignCategoryId)?.name || 'kategori terpilih';
-
-            if (!confirm(`Terapkan kategori "${categoryLabel}" ke ${selectedCount} item?`)) return;
-
-            try {
-                const res = await this.fetchWithAuth('/api/items/bulk/assign-category', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        itemIds: selectedItemIds,
-                        categoryId: this.bulkAssignCategoryId
-                    })
-                });
-                const result = await res.json();
-                if (!res.ok) throw new Error(result.error || 'Gagal menerapkan kategori');
-
-                this.selectedItemsForBulk = [];
-                await this.loadItems();
-                await this.loadStats();
-                this.showNotificationMessage(result.message || 'Kategori berhasil diperbarui', 'success');
-            } catch (err) {
-                if (err.message !== 'Unauthorized') {
-                    this.showNotificationMessage(err.message, 'error');
-                }
-            }
-        },
-
-        async bulkDeleteItems() {
-            if (!this.isAdmin) return;
-            const selectedItemIds = this.normalizedSelectedItemsForBulk;
-            if (selectedItemIds.length === 0) {
-                this.showNotificationMessage('Pilih minimal satu item', 'error');
-                return;
-            }
-
-            const selectedItemIdSet = new Set(selectedItemIds);
-            const selectedItems = this.items.filter(item => selectedItemIdSet.has(Number(item.id)));
-            const selectedCount = selectedItems.length;
-            if (selectedCount === 0) {
-                this.showNotificationMessage('Item terpilih tidak ditemukan', 'error');
-                return;
-            }
-
-            const itemPreview = selectedItems.slice(0, 3).map(item => item.article).join(', ');
-            const remainingCount = selectedCount - Math.min(selectedItems.length, 3);
-            const previewText = remainingCount > 0 ? `${itemPreview}, dan ${remainingCount} item lainnya` : itemPreview;
-
-            if (!confirm(`Hapus ${selectedCount} item sekaligus?\n\n${previewText}`)) return;
-
-            try {
-                const res = await this.fetchWithAuth('/api/items/bulk/delete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        itemIds: selectedItemIds
-                    })
-                });
-                const result = await res.json();
-                if (!res.ok) throw new Error(result.error || 'Gagal menghapus item');
-
-                this.selectedItemsForBulk = [];
-                await this.loadItems();
-                await this.loadStats();
-                await this.loadRecentActivities();
-                this.showNotificationMessage(result.message || 'Item berhasil dihapus', 'success');
-            } catch (err) {
-                if (err.message !== 'Unauthorized') {
-                    this.showNotificationMessage(err.message, 'error');
-                }
-            }
-        },
-
         async printBulkLabels() {
             this.bulkLabelSize = 'large';
             this.bulkLabelFormat = 'detailed';
@@ -1331,7 +1174,6 @@ function warehouseApp() {
         applyFilter() {
             this.currentPage = 1;
             this.loadItems();
-            this.loadStats();
         },
 
         clearFilter() {
@@ -1348,9 +1190,7 @@ function warehouseApp() {
             this.showLowStock = false;
             this.tableSearch = '';
             this.currentPage = 1;
-            this.selectedItemsForBulk = [];
             this.loadItems();
-            this.loadStats();
         },
 
         sortTable(field) {
@@ -1426,9 +1266,3 @@ function warehouseApp() {
         }
     };
 }
-
-window.warehouseApp = warehouseApp;
-
-document.addEventListener('alpine:init', () => {
-    Alpine.data('warehouseApp', warehouseApp);
-});

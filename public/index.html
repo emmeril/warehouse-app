@@ -55,7 +55,7 @@
     </style>
 </head>
 <body class="bg-gradient-to-br from-slate-50 via-white to-slate-50/70 antialiased min-h-screen" 
-      x-data="warehouseApp" 
+      x-data="warehouseApp()" 
       x-init="init()" 
       x-cloak>
 
@@ -256,12 +256,12 @@
                         <p class="text-xl font-bold text-slate-800 leading-tight" x-text="formatNumber(totalQty)"></p>
                     </div>
 
-                    <!-- Total Permintaan -->
+                    <!-- Total Order -->
                     <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col items-center text-center">
                         <div class="bg-amber-100 w-10 h-10 rounded-lg flex items-center justify-center mb-2">
                             <i class="fas fa-clipboard-list text-amber-700 text-lg"></i>
                         </div>
-                        <p class="text-xs font-medium text-slate-500">Total Permintaan</p>
+                        <p class="text-xs font-medium text-slate-500">Total Order</p>
                         <p class="text-xl font-bold text-slate-800 leading-tight" x-text="formatNumber(totalOrder)"></p>
                     </div>
 
@@ -335,28 +335,6 @@
                                     class="border font-medium py-2 px-3 rounded-xl text-sm flex items-center">
                                 <i class="fas fa-exclamation-triangle mr-1"></i> Low Stock
                             </button>
-                            <template x-if="isAdmin">
-                                <div class="flex items-center gap-2">
-                                    <select x-model="bulkAssignCategoryId" class="bg-white border border-slate-300 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm">
-                                        <option value="">Assign Kategori</option>
-                                        <template x-for="cat in categories" :key="cat.id">
-                                            <option :value="cat.id" x-text="cat.name"></option>
-                                        </template>
-                                    </select>
-                                    <button @click="bulkAssignCategory" :disabled="normalizedSelectedItemsForBulk.length === 0 || bulkAssignCategoryId === ''" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
-                                        <i class="fas fa-layer-group mr-1"></i> Set Kategori
-                                    </button>
-                                    <button @click="bulkDeleteItems" :disabled="normalizedSelectedItemsForBulk.length === 0" class="bg-red-50 border border-red-200 hover:bg-red-100 text-red-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
-                                        <i class="fas fa-trash mr-1"></i> Hapus Massal
-                                    </button>
-                                    <button @click="selectAllFilteredItems" :disabled="filteredItems.length === 0 || isAllFilteredItemsSelected" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
-                                        <i class="fas fa-check-double mr-1"></i> Pilih Semua untuk Hapus
-                                    </button>
-                                    <button @click="clearBulkSelection" :disabled="normalizedSelectedItemsForBulk.length === 0" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
-                                        <i class="fas fa-times-circle mr-1"></i> Kosongkan Pilihan
-                                    </button>
-                                </div>
-                            </template>
                             <template x-if="canManageItems">
                                 <button @click="openBulkLabelModal" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center">
                                     <i class="fas fa-tags mr-1"></i> Label Massal
@@ -370,11 +348,6 @@
                         <table class="min-w-full divide-y divide-slate-200">
                             <thead class="bg-slate-100/80 sticky top-0">
                                 <tr>
-                                    <template x-if="isAdmin">
-                                        <th class="px-4 py-3 text-left">
-                                            <input type="checkbox" @click="toggleSelectAllBulk" :checked="isCurrentPageFullySelected" class="rounded">
-                                        </th>
-                                    </template>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer" @click="sortTable('id')">ID <i class="fas fa-sort ml-1 text-slate-400"></i></th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer" @click="sortTable('article')">Article <i class="fas fa-sort ml-1 text-slate-400"></i></th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Komponen</th>
@@ -390,11 +363,6 @@
                             <tbody class="bg-white divide-y divide-slate-100">
                                 <template x-for="item in filteredAndSortedItems" :key="item.id">
                                     <tr class="hover:bg-slate-50 transition" :class="{'bg-red-50/50': item.qty <= item.minStock}">
-                                        <template x-if="isAdmin">
-                                            <td class="px-4 py-3 whitespace-nowrap">
-                                                <input type="checkbox" :checked="isItemSelectedForBulk(item.id)" @change="toggleBulkItemSelection(item.id, $event.target.checked)" class="rounded text-indigo-600">
-                                            </td>
-                                        </template>
                                         <td class="px-4 py-3 whitespace-nowrap font-mono text-sm font-medium text-slate-700" x-text="item.id"></td>
                                         <td class="px-4 py-3">
                                             <div class="text-sm font-semibold text-slate-800" x-text="item.article"></div>
@@ -446,11 +414,11 @@
                                     </tr>
                                 </template>
                                 <tr x-show="filteredAndSortedItems.length === 0 && !loading">
-                                    <td :colspan="isAdmin ? 11 : 10" class="px-6 py-12 text-center">
+                                    <td colspan="10" class="px-6 py-12 text-center">
                                         <div class="flex flex-col items-center">
                                             <i class="fas fa-box-open text-slate-300 text-5xl mb-3"></i>
                                             <p class="text-slate-500 font-medium">Tidak ada data item</p>
-                                            <p class="text-slate-400 text-sm mt-1" x-text="filter.categoryId ? `Kategori ${activeCategoryFilterLabel} belum memiliki item` : (showLowStock ? 'Tidak ada item dengan stok rendah' : 'Coba ubah filter untuk melihat item lain')"></p>
+                                            <p class="text-slate-400 text-sm mt-1" x-text="showLowStock ? 'Tidak ada item dengan stok rendah' : ''"></p>
                                         </div>
                                     </td>
                                 </tr>
@@ -464,17 +432,6 @@
                             Menampilkan <span class="font-semibold" x-text="filteredAndSortedItems.length"></span> dari <span class="font-semibold" x-text="items.length"></span> item
                         </div>
                         <div class="flex items-center gap-4">
-                            <template x-if="isAdmin">
-                                <span class="text-sm text-slate-600">
-                                    <span class="font-semibold text-indigo-600" x-text="selectedFilteredItemsCount"></span>
-                                    dari
-                                    <span class="font-semibold text-slate-700" x-text="filteredItems.length"></span>
-                                    item filter terpilih
-                                    <span x-show="normalizedSelectedItemsForBulk.length > selectedFilteredItemsCount" class="text-slate-400">
-                                        (total <span x-text="normalizedSelectedItemsForBulk.length"></span>)
-                                    </span>
-                                </span>
-                            </template>
                             <span class="text-sm text-slate-600"><span class="font-semibold text-red-600" x-text="lowStockCount"></span> stok rendah</span>
                             <div class="flex gap-1">
                                 <button @click="previousPage" :disabled="currentPage === 1" class="w-8 h-8 flex items-center justify-center border border-slate-300 rounded-lg disabled:opacity-40 hover:bg-slate-100">
@@ -773,29 +730,29 @@
                     
                     <div class="space-y-3">
                         <div class="flex items-center justify-between">
-                            <p class="font-semibold text-slate-800 text-lg" x-text="scannedItem?.article || ''"></p>
+                            <p class="font-semibold text-slate-800 text-lg" x-text="scannedItem.article"></p>
                             <span class="px-3 py-1 rounded-full text-xs font-semibold" 
-                                  :class="getStatusBadgeClass(scannedItem?.qty ?? 0, scannedItem?.minStock ?? 0)">
-                                <i :class="getStatusIcon(scannedItem?.qty ?? 0, scannedItem?.minStock ?? 0)"></i>
-                                <span x-text="getStatusText(scannedItem?.qty ?? 0, scannedItem?.minStock ?? 0)"></span>
+                                  :class="getStatusBadgeClass(scannedItem.qty, scannedItem.minStock)">
+                                <i :class="getStatusIcon(scannedItem.qty, scannedItem.minStock)"></i>
+                                <span x-text="getStatusText(scannedItem.qty, scannedItem.minStock)"></span>
                             </span>
                         </div>
                         
                         <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                            <div><span class="text-slate-500">ID:</span> <span class="font-mono font-medium" x-text="scannedItem?.id || ''"></span></div>
-                            <div><span class="text-slate-500">Komponen:</span> <span class="font-medium" x-text="scannedItem?.komponen || '-'"></span></div>
-                            <div><span class="text-slate-500">Kategori:</span> <span class="font-medium" x-text="scannedItem?.Category?.name || '-'"></span></div>
-                            <div><span class="text-slate-500">Lokasi:</span> <span class="font-medium" x-text="scannedItem?.kolom || '-'"></span></div>
-                            <div><span class="text-slate-500">Min Stock:</span> <span class="font-medium" x-text="scannedItem?.minStock ?? 0"></span></div>
-                            <div><span class="text-slate-500">No. PO:</span> <span class="font-medium" x-text="scannedItem?.noPo || '-'"></span></div>
+                            <div><span class="text-slate-500">ID:</span> <span class="font-mono font-medium" x-text="scannedItem.id"></span></div>
+                            <div><span class="text-slate-500">Komponen:</span> <span class="font-medium" x-text="scannedItem.komponen || '-'"></span></div>
+                            <div><span class="text-slate-500">Kategori:</span> <span class="font-medium" x-text="scannedItem.Category?.name || '-'"></span></div>
+                            <div><span class="text-slate-500">Lokasi:</span> <span class="font-medium" x-text="scannedItem.kolom || '-'"></span></div>
+                            <div><span class="text-slate-500">Min Stock:</span> <span class="font-medium" x-text="scannedItem.minStock"></span></div>
+                            <div><span class="text-slate-500">No. PO:</span> <span class="font-medium" x-text="scannedItem.noPo || '-'"></span></div>
                         </div>
                         
                         <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
                             <span class="text-sm font-medium text-slate-700">Stok Saat Ini:</span>
-                            <span class="text-2xl font-bold" :class="(scannedItem?.qty ?? 0) <= (scannedItem?.minStock ?? 0) ? 'text-red-600' : 'text-green-600'" x-text="scannedItem?.qty ?? 0"></span>
+                            <span class="text-2xl font-bold" :class="scannedItem.qty <= scannedItem.minStock ? 'text-red-600' : 'text-green-600'" x-text="scannedItem.qty"></span>
                         </div>
                         
-                        <div x-show="(scannedItem?.qty ?? 0) <= (scannedItem?.minStock ?? 0)" class="text-xs text-red-600 bg-red-50 p-2 rounded-lg flex items-center gap-1">
+                        <div x-show="scannedItem.qty <= scannedItem.minStock" class="text-xs text-red-600 bg-red-50 p-2 rounded-lg flex items-center gap-1">
                             <i class="fas fa-exclamation-triangle"></i> Stok berada di bawah minimum! Segera lakukan restock.
                         </div>
                         

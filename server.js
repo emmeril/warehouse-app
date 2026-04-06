@@ -12,19 +12,9 @@ const SQLiteStore = require('connect-sqlite3')(session);
 const ExcelJS = require('exceljs');
 const multer = require('multer');
 
-try {
-  require('dotenv').config();
-} catch (err) {
-  // dotenv is optional; runtime environment variables still work without it.
-}
-
 const app = express();
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-const isProduction = process.env.NODE_ENV === 'production';
-const sessionSecret = process.env.SESSION_SECRET || 'warehouse-dev-secret';
-const shouldAlterSchema = process.env.DB_SYNC_ALTER === 'true';
 
 // ==================== DATABASE (SQLite + Sequelize) ====================
 const sequelize = new Sequelize({
@@ -96,23 +86,6 @@ const ScanLog = sequelize.define('ScanLog', {
   scannedBy: { type: DataTypes.STRING, defaultValue: 'System' }
 }, { timestamps: true });
 
-// MODEL ARSIP ITEM YANG SUDAH DIHAPUS
-const DeletedItemLog = sequelize.define('DeletedItemLog', {
-  originalItemId: { type: DataTypes.INTEGER, allowNull: false },
-  article: { type: DataTypes.STRING, allowNull: false },
-  komponen: { type: DataTypes.STRING, allowNull: false },
-  noPo: { type: DataTypes.STRING },
-  order: { type: DataTypes.INTEGER, defaultValue: 0 },
-  qty: { type: DataTypes.INTEGER, defaultValue: 0 },
-  minStock: { type: DataTypes.INTEGER, defaultValue: 0 },
-  kolom: { type: DataTypes.STRING },
-  categoryId: { type: DataTypes.INTEGER, allowNull: true },
-  deletedBy: { type: DataTypes.STRING, defaultValue: 'System' },
-  deleteReason: { type: DataTypes.STRING, defaultValue: 'manual_delete' },
-  qtyHistorySnapshot: { type: DataTypes.TEXT },
-  scanLogSnapshot: { type: DataTypes.TEXT }
-}, { timestamps: true, indexes: [{ fields: ['originalItemId'] }, { fields: ['createdAt'] }] });
-
 // ASSOCIATIONS
 Item.hasMany(QtyHistory, { foreignKey: 'itemId', onDelete: 'CASCADE' });
 QtyHistory.belongsTo(Item, { foreignKey: 'itemId' });
@@ -127,15 +100,10 @@ Item.belongsTo(Category, { foreignKey: 'categoryId' });
 // ==================== SESSION CONFIG ====================
 app.use(session({
   store: new SQLiteStore({ db: 'sessions.db', dir: './' }),
-  secret: sessionSecret,
+  secret: 'warehouse-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
-  cookie: {
-    maxAge: 24 * 60 * 60 * 1000,
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: isProduction
-  } // 1 hari
+  cookie: { maxAge: 24 * 60 * 60 * 1000 } // 1 hari
 }));
 
 // ==================== AUTH MIDDLEWARE ====================
@@ -150,219 +118,39 @@ function isAdmin(req, res, next) {
 }
 
 function isAdminOrStaff(req, res, next) {
-  if (req.session.role === 'admin') return next();
-  if (!req.session.categoryId) {
-    return res.status(403).json({ error: 'Forbidden - kategori belum ditetapkan untuk user ini' });
-  }
-  if (req.session.role === 'staff' || req.session.role === 'operator') return next();
-  res.status(403).json({ error: 'Forbidden - Hanya untuk admin, operator, atau staff' });
+  if (req.session.role === 'admin' || req.session.role === 'staff') return next();
+  res.status(403).json({ error: 'Forbidden - Hanya untuk admin atau staff' });
 }
 
 // Helper untuk menambahkan filter kategori ke WHERE clause
 function addCategoryFilter(req, where) {
-  if (req.session.role !== 'admin') {
-    if (req.session.categoryId) {
-      where.categoryId = req.session.categoryId;
-    } else {
-      // Tidak boleh mengakses data ketika user non-admin belum terikat kategori
-      where.id = -1;
-    }
+  if (req.session.role !== 'admin' && req.session.categoryId) {
+    where.categoryId = req.session.categoryId;
   }
   return where;
 }
 
-function hasCategoryAccess(req, categoryId) {
-  return req.session.role === 'admin' || (req.session.categoryId && categoryId === req.session.categoryId);
-}
-
-const ITEM_ALLOWED_FIELDS = ['article', 'komponen', 'noPo', 'order', 'qty', 'kolom', 'minStock', 'categoryId', 'locationId'];
-const CATEGORY_ALLOWED_FIELDS = ['name', 'description'];
-const LOCATION_ALLOWED_FIELDS = ['name', 'description', 'capacity', 'currentItems'];
-
-function pickAllowedFields(source, allowedFields) {
-  return allowedFields.reduce((result, field) => {
-    if (source[field] !== undefined) {
-      result[field] = source[field];
-    }
-    return result;
-  }, {});
-}
-
-function parseIntegerField(value, fieldName, { min } = {}) {
-  if (value === undefined || value === null || value === '') return undefined;
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed)) {
-    const error = new Error(`${fieldName} must be an integer`);
-    error.statusCode = 400;
-    throw error;
-  }
-  if (min !== undefined && parsed < min) {
-    const error = new Error(`${fieldName} must be at least ${min}`);
-    error.statusCode = 400;
-    throw error;
-  }
-  return parsed;
-}
-
-function sanitizeItemInput(input) {
-  const data = pickAllowedFields(input, ITEM_ALLOWED_FIELDS);
-  const integerFields = [
-    ['order', { min: 0 }],
-    ['qty', { min: 0 }],
-    ['minStock', { min: 0 }],
-    ['categoryId', { min: 1 }],
-    ['locationId', { min: 1 }]
-  ];
-
-  for (const [field, options] of integerFields) {
-    const parsed = parseIntegerField(data[field], field, options);
-    if (parsed !== undefined) {
-      data[field] = parsed;
-    } else {
-      delete data[field];
-    }
-  }
-
-  return data;
-}
-
-function sanitizeCategoryInput(input) {
-  return pickAllowedFields(input, CATEGORY_ALLOWED_FIELDS);
-}
-
-function sanitizeLocationInput(input) {
-  const data = pickAllowedFields(input, LOCATION_ALLOWED_FIELDS);
-  const capacity = parseIntegerField(data.capacity, 'capacity', { min: 0 });
-  const currentItems = parseIntegerField(data.currentItems, 'currentItems', { min: 0 });
-  if (capacity !== undefined) data.capacity = capacity;
-  if (currentItems !== undefined) data.currentItems = currentItems;
-  return data;
-}
-
-async function findAccessibleItemByPk(req, itemId, options = {}) {
-  const item = await Item.findByPk(itemId, options);
-  if (!item) return null;
-  if (!hasCategoryAccess(req, item.categoryId)) return null;
-  return item;
-}
-
-function respondWithError(res, err) {
-  const statusCode = err.statusCode || 500;
-  res.status(statusCode).json({ error: err.message });
-}
-
-async function archiveDeletedItems(items, deletedBy, deleteReason, transaction) {
-  if (!Array.isArray(items) || items.length === 0) return;
-
-  const itemIds = items.map(item => item.id);
-  const qtyHistories = await QtyHistory.findAll({
-    where: { itemId: { [Op.in]: itemIds } },
-    order: [['createdAt', 'ASC']],
-    transaction
-  });
-  const scanLogs = await ScanLog.findAll({
-    where: { itemId: { [Op.in]: itemIds } },
-    order: [['createdAt', 'ASC']],
-    transaction
-  });
-
-  const qtyHistoryByItemId = qtyHistories.reduce((result, history) => {
-    const key = history.itemId;
-    if (!result[key]) result[key] = [];
-    result[key].push(history.toJSON());
-    return result;
-  }, {});
-  const scanLogByItemId = scanLogs.reduce((result, log) => {
-    const key = log.itemId;
-    if (!result[key]) result[key] = [];
-    result[key].push(log.toJSON());
-    return result;
-  }, {});
-
-  await DeletedItemLog.bulkCreate(items.map(item => ({
-    originalItemId: item.id,
-    article: item.article,
-    komponen: item.komponen,
-    noPo: item.noPo,
-    order: item.order,
-    qty: item.qty,
-    minStock: item.minStock,
-    kolom: item.kolom,
-    categoryId: item.categoryId,
-    deletedBy,
-    deleteReason,
-    qtyHistorySnapshot: JSON.stringify(qtyHistoryByItemId[item.id] || []),
-    scanLogSnapshot: JSON.stringify(scanLogByItemId[item.id] || [])
-  })), { transaction });
-}
-
-function normalizeCsvHeader(value) {
-  return (value || '').toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function parseCsvLine(line) {
-  const values = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    const nextChar = line[i + 1];
-
-    if (char === '"' && inQuotes && nextChar === '"') {
-      current += '"';
-      i++;
-      continue;
-    }
-
-    if (char === '"') {
-      inQuotes = !inQuotes;
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      values.push(current.trim());
-      current = '';
-      continue;
-    }
-
-    current += char;
-  }
-
-  values.push(current.trim());
-  return values;
-}
-
 // ==================== SYNC DATABASE & SEED DEFAULT USERS ====================
-async function initializeDatabase() {
-  if (!process.env.SESSION_SECRET) {
-    console.warn('SESSION_SECRET tidak diset. Menggunakan secret development default.');
-  }
-  if (shouldAlterSchema) {
-    console.warn('DB_SYNC_ALTER=true aktif. Sequelize akan menjalankan sync alter saat startup.');
-  }
-
-  await sequelize.sync({ alter: shouldAlterSchema });
-
+sequelize.sync({ alter: true }).then(async () => {
   const adminExists = await User.findOne({ where: { username: 'admin' } });
   if (!adminExists) {
     const hashedPassword = await bcrypt.hash('admin', 10);
     await User.create({ username: 'admin', password: hashedPassword, role: 'admin', categoryId: null });
-    console.log('??? Default admin created (admin/admin)');
+    console.log('✅ Default admin created (admin/admin)');
   }
   const operatorExists = await User.findOne({ where: { username: 'operator' } });
   if (!operatorExists) {
     const hashedPassword = await bcrypt.hash('operator', 10);
     await User.create({ username: 'operator', password: hashedPassword, role: 'operator', categoryId: null });
-    console.log('??? Default operator created (operator/operator)');
+    console.log('✅ Default operator created (operator/operator)');
   }
   const staffExists = await User.findOne({ where: { username: 'staff' } });
   if (!staffExists) {
     const hashedPassword = await bcrypt.hash('staff', 10);
     await User.create({ username: 'staff', password: hashedPassword, role: 'staff', categoryId: null });
-    console.log('??? Default staff created (staff/staff)');
+    console.log('✅ Default staff created (staff/staff)');
   }
-}
+});
 
 // ==================== AUTH ROUTES ====================
 app.post('/api/login', async (req, res) => {
@@ -378,7 +166,7 @@ app.post('/api/login', async (req, res) => {
     req.session.categoryId = user.categoryId;
     res.json({ success: true, user: { id: user.id, username: user.username, role: user.role, categoryId: user.categoryId } });
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -406,7 +194,7 @@ app.get('/api/users', isAuthenticated, isAdmin, async (req, res) => {
     });
     res.json(users);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -434,7 +222,7 @@ app.post('/api/users', isAuthenticated, isAdmin, async (req, res) => {
       createdAt: newUser.createdAt
     });
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -449,7 +237,7 @@ app.delete('/api/users/:id', isAuthenticated, isAdmin, async (req, res) => {
     await user.destroy();
     res.json({ success: true, message: 'User deleted' });
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -459,7 +247,7 @@ app.get('/api/categories', isAuthenticated, async (req, res) => {
     const categories = await Category.findAll({ order: [['name', 'ASC']] });
     res.json(categories);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -470,7 +258,7 @@ app.post('/api/categories', isAuthenticated, isAdmin, async (req, res) => {
     const category = await Category.create({ name, description });
     res.status(201).json(category);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -478,11 +266,10 @@ app.put('/api/categories/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const category = await Category.findByPk(req.params.id);
     if (!category) return res.status(404).json({ error: 'Category not found' });
-    const data = sanitizeCategoryInput(req.body);
-    await category.update(data);
+    await category.update(req.body);
     res.json(category);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -501,7 +288,7 @@ app.delete('/api/categories/:id', isAuthenticated, isAdmin, async (req, res) => 
     await category.destroy();
     res.json({ success: true, message: 'Category deleted' });
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -510,27 +297,21 @@ app.delete('/api/categories/:id', isAuthenticated, isAdmin, async (req, res) => 
 // 1. CREATE ITEM (admin atau staff) - dengan pembatasan kategori
 app.post('/api/items', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
-    const data = sanitizeItemInput(req.body);
-    if (!data.article || !data.komponen) {
-      return res.status(400).json({ error: 'article dan komponen wajib diisi' });
-    }
+    const data = req.body;
     if (req.session.role !== 'admin') {
-      if (!req.session.categoryId) {
-        return res.status(403).json({ error: 'Forbidden - kategori belum ditetapkan untuk user ini' });
-      }
       if (data.categoryId && data.categoryId !== req.session.categoryId) {
         return res.status(403).json({ error: 'Anda hanya dapat menambah item dalam kategori Anda' });
       }
       data.categoryId = req.session.categoryId;
     }
     const item = await Item.create(data);
-    if (data.qty > 0) {
+    if (req.body.qty > 0) {
       await QtyHistory.create({
         itemId: item.id,
         article: item.article,
         oldQty: 0,
-        newQty: data.qty,
-        changeAmount: data.qty,
+        newQty: req.body.qty,
+        changeAmount: req.body.qty,
         changeType: 'inbound',
         notes: 'Initial stock creation',
         updatedBy: req.session.username
@@ -541,7 +322,7 @@ app.post('/api/items', isAuthenticated, isAdminOrStaff, async (req, res) => {
     });
     res.json(itemWithCategory);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -551,14 +332,7 @@ app.get('/api/items', isAuthenticated, async (req, res) => {
     const where = {};
     addCategoryFilter(req, where);
     const order = [['updatedAt', 'DESC']];
-    const andConditions = [];
     if (req.query.kolom) where.kolom = req.query.kolom;
-    if (req.query.categoryId && req.session.role === 'admin') {
-      where.categoryId = parseInt(req.query.categoryId, 10);
-    }
-    if (req.query.noPo) {
-      where.noPo = { [Op.like]: `%${req.query.noPo}%` };
-    }
     if (req.query.search) {
       where[Op.or] = [
         { article: { [Op.like]: `%${req.query.search}%` } },
@@ -567,23 +341,10 @@ app.get('/api/items', isAuthenticated, async (req, res) => {
         { kolom: { [Op.like]: `%${req.query.search}%` } }
       ];
     }
+    if (req.query.lowStock === 'true') {
+      where.qty = { [Op.lte]: sequelize.col('minStock') };
+    }
     if (req.query.komponen) where.komponen = req.query.komponen;
-    if (req.query.minQty !== undefined && req.query.minQty !== '') {
-      andConditions.push({ qty: { [Op.gte]: parseInt(req.query.minQty, 10) } });
-    }
-    if (req.query.maxQty !== undefined && req.query.maxQty !== '') {
-      andConditions.push({ qty: { [Op.lte]: parseInt(req.query.maxQty, 10) } });
-    }
-    if (req.query.lowStock === 'true' || req.query.stockStatus === 'low') {
-      andConditions.push(sequelize.literal('qty <= minStock'));
-    } else if (req.query.stockStatus === 'medium') {
-      andConditions.push(sequelize.literal('qty > minStock AND qty <= minStock * 2'));
-    } else if (req.query.stockStatus === 'safe') {
-      andConditions.push(sequelize.literal('qty > minStock * 2'));
-    }
-    if (andConditions.length > 0) {
-      where[Op.and] = andConditions;
-    }
     if (req.query.sortBy) {
       const sortOrder = req.query.sortOrder === 'desc' ? 'DESC' : 'ASC';
       order.unshift([req.query.sortBy, sortOrder]);
@@ -602,7 +363,7 @@ app.get('/api/items', isAuthenticated, async (req, res) => {
     const total = await Item.count({ where });
     res.json({ items, total, limit, offset, hasMore: (offset + items.length) < total });
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -613,12 +374,12 @@ app.get('/api/items/:id', isAuthenticated, async (req, res) => {
       include: [{ model: Category, attributes: ['id', 'name'] }]
     });
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (!hasCategoryAccess(req, item.categoryId)) {
+    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
     res.json(item);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -631,19 +392,18 @@ app.put('/api/items/:id', isAuthenticated, isAdminOrStaff, async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ message: 'Item not found' });
     }
-    if (!hasCategoryAccess(req, item.categoryId)) {
+    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       await transaction.rollback();
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
-    const data = sanitizeItemInput(req.body);
-    if (data.categoryId && data.categoryId !== item.categoryId && req.session.role !== 'admin') {
+    if (req.body.categoryId && req.body.categoryId !== item.categoryId && req.session.role !== 'admin') {
       await transaction.rollback();
       return res.status(403).json({ error: 'Tidak dapat mengubah kategori item' });
     }
     const oldQty = item.qty;
-    const newQty = data.qty !== undefined ? data.qty : oldQty;
-    await item.update(data, { transaction });
-    if (data.qty !== undefined && oldQty !== newQty) {
+    const newQty = req.body.qty !== undefined ? parseInt(req.body.qty) : oldQty;
+    await item.update(req.body, { transaction });
+    if (req.body.qty !== undefined && oldQty !== newQty) {
       const changeAmount = newQty - oldQty;
       const changeType = determineChangeType(changeAmount, req.body.changeType);
       await QtyHistory.create({
@@ -664,28 +424,29 @@ app.put('/api/items/:id', isAuthenticated, isAdminOrStaff, async (req, res) => {
     res.json(updatedItem);
   } catch (err) {
     await transaction.rollback();
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
 // 5. DELETE ITEM (hanya admin)
 app.delete('/api/items/:id', isAuthenticated, isAdmin, async (req, res) => {
-  const transaction = await sequelize.transaction();
   try {
-    const item = await Item.findByPk(req.params.id, { transaction });
-    if (!item) {
-      await transaction.rollback();
-      return res.status(404).json({ message: 'Item not found' });
-    }
-    await archiveDeletedItems([item], req.session.username, 'single_delete', transaction);
-    await QtyHistory.destroy({ where: { itemId: item.id }, transaction });
-    await ScanLog.destroy({ where: { itemId: item.id }, transaction });
-    await item.destroy({ transaction });
-    await transaction.commit();
+    const item = await Item.findByPk(req.params.id);
+    if (!item) return res.status(404).json({ message: 'Item not found' });
+    await QtyHistory.create({
+      itemId: item.id,
+      article: item.article,
+      oldQty: item.qty,
+      newQty: 0,
+      changeAmount: -item.qty,
+      changeType: 'outbound',
+      notes: 'Item deleted from system',
+      updatedBy: req.session.username
+    });
+    await item.destroy();
     res.json({ status: 'deleted', message: 'Item deleted successfully' });
   } catch (err) {
-    await transaction.rollback();
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -698,7 +459,7 @@ app.post('/api/items/:id/update-qty', isAuthenticated, async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ message: 'Item not found' });
     }
-    if (!hasCategoryAccess(req, item.categoryId)) {
+    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       await transaction.rollback();
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
@@ -708,9 +469,7 @@ app.post('/api/items/:id/update-qty', isAuthenticated, async (req, res) => {
       return res.status(400).json({ message: 'Either newQty or adjustment is required' });
     }
     const oldQty = item.qty;
-    const parsedNewQty = parseIntegerField(newQty, 'newQty', { min: 0 });
-    const parsedAdjustment = parseIntegerField(adjustment, 'adjustment');
-    const finalQty = parsedNewQty !== undefined ? parsedNewQty : oldQty + parsedAdjustment;
+    let finalQty = newQty !== undefined ? parseInt(newQty) : oldQty + parseInt(adjustment);
     if (finalQty < 0) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Quantity cannot be negative' });
@@ -727,11 +486,10 @@ app.post('/api/items/:id/update-qty', isAuthenticated, async (req, res) => {
       updatedBy: req.session.username
     }, { transaction });
     await transaction.commit();
-    const updatedItem = await Item.findByPk(item.id);
-    res.json({ success: true, item: updatedItem, message: `Qty updated from ${oldQty} to ${finalQty}` });
+    res.json({ success: true, item, message: `Qty updated from ${oldQty} to ${finalQty}` });
   } catch (err) {
     await transaction.rollback();
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -740,7 +498,7 @@ app.get('/api/items/:id/qty-history', isAuthenticated, async (req, res) => {
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (!hasCategoryAccess(req, item.categoryId)) {
+    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
     const history = await QtyHistory.findAll({
@@ -750,7 +508,7 @@ app.get('/api/items/:id/qty-history', isAuthenticated, async (req, res) => {
     });
     res.json(history);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -778,7 +536,7 @@ app.get('/api/qty-history', isAuthenticated, async (req, res) => {
     });
     res.json(history);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -787,14 +545,10 @@ app.get('/api/dashboard/stats', isAuthenticated, async (req, res) => {
   try {
     const itemWhere = {};
     addCategoryFilter(req, itemWhere);
-    if (req.query.categoryId && req.session.role === 'admin') {
-      itemWhere.categoryId = parseInt(req.query.categoryId, 10);
-    }
 
     const totalItems = await Item.count({ where: itemWhere });
     const totalQty = await Item.sum('qty', { where: itemWhere }) || 0;
     const totalOrder = await Item.sum('order', { where: itemWhere }) || 0;
-    const totalRequestedQty = totalOrder;
     const lowStockItems = await Item.count({
       where: {
         ...itemWhere,
@@ -830,9 +584,9 @@ app.get('/api/dashboard/stats', isAuthenticated, async (req, res) => {
         required: true
       }]
     });
-    res.json({ totalItems, totalQty, totalOrder, totalRequestedQty, lowStockItems, itemsByLocation, recentActivities, recentScans });
+    res.json({ totalItems, totalQty, totalOrder, lowStockItems, itemsByLocation, recentActivities, recentScans });
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -856,7 +610,7 @@ app.get('/api/unique-values', isAuthenticated, async (req, res) => {
       kolom: kolom.map(k => k.kolom).filter(Boolean)
     });
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -874,13 +628,11 @@ app.post('/api/items/bulk/update-qty', isAuthenticated, isAdminOrStaff, async (r
       const { id, adjustment, newQty } = itemData;
       const item = await Item.findByPk(id);
       if (!item) continue;
-      if (!hasCategoryAccess(req, item.categoryId)) {
+      if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
         continue;
       }
       const oldQty = item.qty;
-      const parsedNewQty = parseIntegerField(newQty, 'newQty', { min: 0 });
-      const parsedAdjustment = parseIntegerField(adjustment, 'adjustment');
-      const finalQty = parsedNewQty !== undefined ? parsedNewQty : oldQty + parsedAdjustment;
+      let finalQty = newQty !== undefined ? parseInt(newQty) : oldQty + parseInt(adjustment);
       if (finalQty < 0) continue;
       await item.update({ qty: finalQty }, { transaction });
       await QtyHistory.create({
@@ -899,107 +651,7 @@ app.post('/api/items/bulk/update-qty', isAuthenticated, isAdminOrStaff, async (r
     res.json({ success: true, updatedCount: results.length, results });
   } catch (err) {
     await transaction.rollback();
-    respondWithError(res, err);
-  }
-});
-
-app.post('/api/items/bulk/delete', isAuthenticated, isAdmin, async (req, res) => {
-  const transaction = await sequelize.transaction();
-  try {
-    const { itemIds } = req.body;
-    if (!Array.isArray(itemIds) || itemIds.length === 0) {
-      await transaction.rollback();
-      return res.status(400).json({ error: 'itemIds wajib berupa array dan tidak boleh kosong' });
-    }
-
-    const uniqueItemIds = [...new Set(itemIds.map(id => parseInt(id, 10)).filter(Number.isInteger))];
-    if (uniqueItemIds.length === 0) {
-      await transaction.rollback();
-      return res.status(400).json({ error: 'itemIds tidak valid' });
-    }
-
-    const items = await Item.findAll({
-      where: { id: { [Op.in]: uniqueItemIds } },
-      transaction
-    });
-
-    if (items.length === 0) {
-      await transaction.rollback();
-      return res.status(404).json({ error: 'Item tidak ditemukan' });
-    }
-
-    const existingItemIds = items.map(item => item.id);
-    await archiveDeletedItems(items, req.session.username, 'bulk_delete', transaction);
-    await QtyHistory.destroy({
-      where: { itemId: { [Op.in]: existingItemIds } },
-      transaction
-    });
-    await ScanLog.destroy({
-      where: { itemId: { [Op.in]: existingItemIds } },
-      transaction
-    });
-
-    const deletedCount = await Item.destroy({
-      where: { id: { [Op.in]: existingItemIds } },
-      transaction
-    });
-
-    await transaction.commit();
-    res.json({
-      success: true,
-      deletedCount,
-      requestedCount: uniqueItemIds.length,
-      message: `${deletedCount} item berhasil dihapus`
-    });
-  } catch (err) {
-    await transaction.rollback();
-    respondWithError(res, err);
-  }
-});
-
-app.post('/api/items/bulk/assign-category', isAuthenticated, isAdmin, async (req, res) => {
-  const transaction = await sequelize.transaction();
-  try {
-    const { itemIds, categoryId } = req.body;
-    if (!Array.isArray(itemIds) || itemIds.length === 0) {
-      await transaction.rollback();
-      return res.status(400).json({ error: 'itemIds wajib berupa array dan tidak boleh kosong' });
-    }
-
-    let nextCategoryId = null;
-    if (categoryId !== null && categoryId !== undefined && categoryId !== '') {
-      nextCategoryId = parseIntegerField(categoryId, 'categoryId', { min: 1 });
-      const category = await Category.findByPk(nextCategoryId);
-      if (!category) {
-        await transaction.rollback();
-        return res.status(404).json({ error: 'Category not found' });
-      }
-    }
-
-    const uniqueItemIds = [...new Set(itemIds.map(id => parseInt(id, 10)).filter(Number.isInteger))];
-    if (uniqueItemIds.length === 0) {
-      await transaction.rollback();
-      return res.status(400).json({ error: 'itemIds tidak valid' });
-    }
-
-    const [updatedCount] = await Item.update(
-      { categoryId: nextCategoryId },
-      {
-        where: { id: { [Op.in]: uniqueItemIds } },
-        transaction
-      }
-    );
-
-    await transaction.commit();
-    res.json({
-      success: true,
-      updatedCount,
-      categoryId: nextCategoryId,
-      message: nextCategoryId ? `Kategori berhasil diterapkan ke ${updatedCount} item` : `Kategori berhasil dikosongkan dari ${updatedCount} item`
-    });
-  } catch (err) {
-    await transaction.rollback();
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1061,7 +713,7 @@ app.get('/api/export/excel', isAuthenticated, isAdminOrStaff, async (req, res) =
     await workbook.xlsx.write(res);
     res.end();
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1130,91 +782,39 @@ app.post('/api/export/qty-history', isAuthenticated, isAdminOrStaff, async (req,
     await workbook.xlsx.write(res);
     res.end();
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
 // 13. IMPORT CSV (admin atau staff) dengan pembatasan kategori
 app.post('/api/import/csv', isAuthenticated, isAdminOrStaff, express.text({ type: 'text/csv' }), async (req, res) => {
-  const transaction = await sequelize.transaction();
   try {
-    if (typeof req.body !== 'string' || !req.body.trim()) {
-      await transaction.rollback();
-      return res.status(400).json({ error: 'CSV body is required' });
-    }
-
-    const lines = req.body.split(/\r?\n/).filter(line => line.trim());
-    if (lines.length < 2) {
-      await transaction.rollback();
-      return res.status(400).json({ error: 'CSV harus memiliki header dan minimal satu baris data' });
-    }
-
-    const headers = parseCsvLine(lines[0]).map(normalizeCsvHeader);
-    const headerIndex = Object.fromEntries(headers.map((header, index) => [header, index]));
-    if (headerIndex.article === undefined || headerIndex.komponen === undefined) {
-      await transaction.rollback();
-      return res.status(400).json({ error: 'Header article dan komponen wajib ada di CSV' });
-    }
-
+    const csvData = req.body;
+    const lines = csvData.split('\n');
+    const headers = lines[0].split(',');
     const importedItems = [];
-    const errors = [];
-
     for (let i = 1; i < lines.length; i++) {
-      const values = parseCsvLine(lines[i]);
-      const rawItemData = {
-        article: values[headerIndex.article],
-        komponen: values[headerIndex.komponen],
-        noPo: values[headerIndex.nopo],
-        order: values[headerIndex.order],
-        qty: values[headerIndex.qty],
-        minStock: values[headerIndex.minstock],
-        kolom: values[headerIndex.kolom ?? headerIndex.lokasi]
+      const line = lines[i].trim();
+      if (!line) continue;
+      const values = line.split(',');
+      const itemData = {
+        article: values[1]?.replace(/"/g, '') || '',
+        komponen: values[2]?.replace(/"/g, '') || '',
+        noPo: values[3]?.replace(/"/g, '') || '',
+        order: parseInt(values[4]) || 0,
+        qty: parseInt(values[5]) || 0,
+        minStock: parseInt(values[6]) || 10,
+        kolom: values[7]?.replace(/"/g, '') || ''
       };
-
-      try {
-        const itemData = sanitizeItemInput(rawItemData);
-        if (!itemData.article || !itemData.komponen) {
-          errors.push(`Baris ${i + 1}: article dan komponen wajib diisi`);
-          continue;
-        }
-
-        if (itemData.minStock === undefined) itemData.minStock = 10;
-        if (itemData.order === undefined) itemData.order = 0;
-        if (itemData.qty === undefined) itemData.qty = 0;
-
-        if (req.session.role !== 'admin') {
-          itemData.categoryId = req.session.categoryId;
-        }
-
-        const item = await Item.create(itemData, { transaction });
-        if (itemData.qty > 0) {
-          await QtyHistory.create({
-            itemId: item.id,
-            article: item.article,
-            oldQty: 0,
-            newQty: itemData.qty,
-            changeAmount: itemData.qty,
-            changeType: 'inbound',
-            notes: 'Import dari CSV',
-            updatedBy: req.session.username
-          }, { transaction });
-        }
-        importedItems.push(item);
-      } catch (err) {
-        errors.push(`Baris ${i + 1}: ${err.message}`);
+      if (req.session.role !== 'admin') {
+        itemData.categoryId = req.session.categoryId;
       }
+      const item = await Item.create(itemData);
+      importedItems.push(item);
     }
-
-    if (errors.length > 0) {
-      await transaction.rollback();
-      return res.status(400).json({ error: 'Terdapat kesalahan pada data CSV', details: errors });
-    }
-
-    await transaction.commit();
     res.json({ success: true, message: `Imported ${importedItems.length} items`, items: importedItems });
   } catch (err) {
-    await transaction.rollback();
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1360,7 +960,7 @@ app.post('/api/import/excel', isAuthenticated, isAdmin, upload.single('file'), a
   } catch (err) {
     await transaction.rollback();
     console.error(err);
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1373,7 +973,7 @@ app.get('/api/backup', isAuthenticated, isAdmin, async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=warehouse-backup-${backupDate}.json`);
     res.json({ timestamp: new Date(), itemCount: backupData.length, items: backupData });
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1386,20 +986,16 @@ app.get('/api/locations', isAuthenticated, isAdminOrStaff, async (req, res) => {
     });
     res.json(locations);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
 app.post('/api/locations', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
-    const data = sanitizeLocationInput(req.body);
-    if (!data.name) {
-      return res.status(400).json({ error: 'name wajib diisi' });
-    }
-    const location = await Location.create(data);
+    const location = await Location.create(req.body);
     res.json(location);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1410,7 +1006,7 @@ app.get('/api/items/:id/label-data', isAuthenticated, isAdminOrStaff, async (req
       include: [{ model: Category, attributes: ['name'] }]
     });
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (!hasCategoryAccess(req, item.categoryId)) {
+    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
     const qrData = JSON.stringify({ id: item.id, article: item.article, komponen: item.komponen, location: item.kolom, category: item.Category?.name, minStock: item.minStock, timestamp: new Date().toISOString(), action: 'scan_update' });
@@ -1418,7 +1014,7 @@ app.get('/api/items/:id/label-data', isAuthenticated, isAdminOrStaff, async (req
     const labelData = { id: item.id, article: item.article, komponen: item.komponen, noPo: item.noPo, qty: item.qty, minStock: item.minStock, kolom: item.kolom, category: item.Category?.name, createdAt: item.createdAt, barcodeData: `ITEM${item.id.toString().padStart(6, '0')}`, qrData, qrCodeDataURL };
     res.json(labelData);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1428,7 +1024,7 @@ app.post('/api/labels/bulk', isAuthenticated, isAdminOrStaff, async (req, res) =
     const { itemIds } = req.body;
     if (!Array.isArray(itemIds) || itemIds.length === 0) return res.status(400).json({ message: 'Item IDs array is required' });
 
-    const where = { id: { [Op.in]: itemIds } };
+    const where = { id: itemIds };
     addCategoryFilter(req, where);
 
     const items = await Item.findAll({
@@ -1449,7 +1045,7 @@ app.post('/api/labels/bulk', isAuthenticated, isAdminOrStaff, async (req, res) =
     }
     res.json({ success: true, count: labels.length, labels });
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1513,7 +1109,7 @@ app.post('/api/qr-scan', isAuthenticated, async (req, res) => {
 
     res.json({ success: true, count: items.length, items, qrData });
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1532,19 +1128,20 @@ app.post('/api/qr-quick-update', isAuthenticated, async (req, res) => {
     } catch (err) {
       if (!isNaN(qrData)) itemId = parseInt(qrData);
       else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
-      else {
-        const itemWhere = { article: { [Op.like]: `%${qrData}%` } };
-        addCategoryFilter(req, itemWhere);
-        item = await Item.findOne({ where: itemWhere });
-      }
+      else item = await Item.findOne({ where: { article: { [Op.like]: `%${qrData}%` } } });
     }
-    if (!item && itemId) item = await findAccessibleItemByPk(req, itemId);
+    if (!item) item = await Item.findByPk(itemId);
     if (!item) { await transaction.rollback(); return res.status(404).json({ message: 'Item tidak ditemukan' }); }
 
+    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+      await transaction.rollback();
+      return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
+    }
+
     const oldQty = item.qty;
-    const parsedNewQty = parseIntegerField(newQty, 'newQty', { min: 0 });
-    const parsedAdjustment = parseIntegerField(adjustment, 'adjustment');
-    const finalQty = parsedNewQty !== undefined ? parsedNewQty : oldQty + parsedAdjustment;
+    let finalQty;
+    if (newQty !== undefined) finalQty = parseInt(newQty);
+    else finalQty = oldQty + parseInt(adjustment);
     if (finalQty < 0) { await transaction.rollback(); return res.status(400).json({ message: 'Quantity cannot be negative' }); }
 
     await item.update({ qty: finalQty }, { transaction });
@@ -1569,12 +1166,10 @@ app.post('/api/qr-quick-update', isAuthenticated, async (req, res) => {
     }, { transaction });
 
     await transaction.commit();
-    const updatedItem = await Item.findByPk(item.id);
-    const delta = finalQty - oldQty;
-    res.json({ success: true, item: updatedItem, message: `Qty updated via QR: ${oldQty} to ${finalQty} (${delta > 0 ? '+' : ''}${delta})` });
+    res.json({ success: true, item, message: `Qty updated via QR: ${oldQty} → ${finalQty} (${finalQty - oldQty > 0 ? '+' : ''}${finalQty - oldQty})` });
   } catch (err) {
     await transaction.rollback();
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1583,7 +1178,7 @@ app.get('/api/items/:id/qrcode', isAuthenticated, isAdminOrStaff, async (req, re
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (!hasCategoryAccess(req, item.categoryId)) {
+    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
     const qrData = JSON.stringify({ id: item.id, article: item.article, komponen: item.komponen, location: item.kolom, minStock: item.minStock, timestamp: new Date().toISOString(), action: 'scan_update' });
@@ -1592,7 +1187,7 @@ app.get('/api/items/:id/qrcode', isAuthenticated, isAdminOrStaff, async (req, re
     res.set('Content-Type', 'image/png');
     res.send(Buffer.from(base64Data, 'base64'));
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1602,7 +1197,7 @@ app.post('/api/qrcode/batch', isAuthenticated, isAdminOrStaff, async (req, res) 
     const { itemIds } = req.body;
     if (!Array.isArray(itemIds) || itemIds.length === 0) return res.status(400).json({ message: 'Item IDs array is required' });
 
-    const where = { id: { [Op.in]: itemIds } };
+    const where = { id: itemIds };
     addCategoryFilter(req, where);
 
     const items = await Item.findAll({ where, order: [['kolom', 'ASC'], ['article', 'ASC']] });
@@ -1615,7 +1210,7 @@ app.post('/api/qrcode/batch', isAuthenticated, isAdminOrStaff, async (req, res) 
     }
     res.json({ success: true, count: qrCodes.length, qrCodes });
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1643,7 +1238,7 @@ app.get('/api/scan-logs', isAuthenticated, async (req, res) => {
     });
     res.json(logs);
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1665,13 +1260,12 @@ app.post('/api/inventory/count', isAuthenticated, async (req, res) => {
       const item = await Item.findByPk(itemId);
       if (!item) { results.push({ qrData, success: false, message: 'Item not found' }); continue; }
 
-      if (!hasCategoryAccess(req, item.categoryId)) {
+      if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
         results.push({ qrData, success: false, message: 'No access to this item' });
         continue;
       }
 
-      const parsedCountedQty = parseIntegerField(countedQty, 'countedQty', { min: 0 });
-      if (item.qty !== parsedCountedQty) discrepancies.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty: parsedCountedQty, difference: parsedCountedQty - item.qty });
+      if (item.qty !== countedQty) discrepancies.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty, difference: countedQty - item.qty });
 
       await ScanLog.create({
         itemId: item.id,
@@ -1679,17 +1273,17 @@ app.post('/api/inventory/count', isAuthenticated, async (req, res) => {
         scanType: 'qr',
         scanData: qrData,
         action: 'check_in',
-        result: `Counted: ${parsedCountedQty}, System: ${item.qty}`,
+        result: `Counted: ${countedQty}, System: ${item.qty}`,
         scannedBy: req.session.username
       }, { transaction });
 
-      results.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty: parsedCountedQty, success: true });
+      results.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty, success: true });
     }
     await transaction.commit();
     res.json({ success: true, totalScanned: results.length, results, discrepancies, discrepancyCount: discrepancies.length });
   } catch (err) {
     await transaction.rollback();
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1698,7 +1292,7 @@ app.get('/api/items/:id/label-qrcode', isAuthenticated, isAdminOrStaff, async (r
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (!hasCategoryAccess(req, item.categoryId)) {
+    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
     const qrData = JSON.stringify({ id: item.id, article: item.article, location: item.kolom || '' });
@@ -1707,7 +1301,7 @@ app.get('/api/items/:id/label-qrcode', isAuthenticated, isAdminOrStaff, async (r
     res.set('Content-Type', 'image/png');
     res.send(Buffer.from(base64Data, 'base64'));
   } catch (err) {
-    respondWithError(res, err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1732,25 +1326,18 @@ function determineChangeType(changeAmount, specifiedType) {
 }
 
 const PORT = process.env.PORT || 2616;
-initializeDatabase()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`========================================`);
-      console.log(`Warehouse Management System v5.4`);
-      console.log(`QR Code otomatis di label: ENABLED`);
-      console.log(`Role-based access control: ENABLED (admin/operator/staff) dengan pembatasan kategori`);
-      console.log(`Manajemen User: ENABLED (admin only)`);
-      console.log(`Manajemen Kategori: ENABLED (admin only)`);
-      console.log(`Manajemen Lokasi: ENABLED (admin & staff)`);
-      console.log(`Fitur Export: EXCEL (ExcelJS)`);
-      console.log(`Fitur Import: EXCEL (admin only)`);
-      console.log(`Server running on http://localhost:${PORT}`);
-      console.log(`Database: ${sequelize.options.storage}`);
-      console.log(`Default users: admin/admin , operator/operator , staff/staff`);
-      console.log(`========================================`);
-    });
-  })
-  .catch((err) => {
-    console.error('Database initialization failed:', err);
-    process.exit(1);
-  });
+app.listen(PORT, () => {
+  console.log(`========================================`);
+  console.log(`Warehouse Management System v5.4`);
+  console.log(`QR Code otomatis di label: ENABLED`);
+  console.log(`Role-based access control: ENABLED (admin/operator/staff) dengan pembatasan kategori`);
+  console.log(`Manajemen User: ENABLED (admin only)`);
+  console.log(`Manajemen Kategori: ENABLED (admin only)`);
+  console.log(`Manajemen Lokasi: ENABLED (admin & staff)`);
+  console.log(`Fitur Export: EXCEL (ExcelJS)`);
+  console.log(`Fitur Import: EXCEL (admin only)`);
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Database: ${sequelize.config.storage}`);
+  console.log(`Default users: admin/admin , operator/operator , staff/staff`);
+  console.log(`========================================`);
+});
