@@ -489,7 +489,14 @@ app.get('/api/items', isAuthenticated, async (req, res) => {
     const where = {};
     addCategoryFilter(req, where);
     const order = [['updatedAt', 'DESC']];
+    const andConditions = [];
     if (req.query.kolom) where.kolom = req.query.kolom;
+    if (req.query.categoryId && req.session.role === 'admin') {
+      where.categoryId = parseInt(req.query.categoryId, 10);
+    }
+    if (req.query.noPo) {
+      where.noPo = { [Op.like]: `%${req.query.noPo}%` };
+    }
     if (req.query.search) {
       where[Op.or] = [
         { article: { [Op.like]: `%${req.query.search}%` } },
@@ -498,10 +505,23 @@ app.get('/api/items', isAuthenticated, async (req, res) => {
         { kolom: { [Op.like]: `%${req.query.search}%` } }
       ];
     }
-    if (req.query.lowStock === 'true') {
-      where.qty = { [Op.lte]: sequelize.col('minStock') };
-    }
     if (req.query.komponen) where.komponen = req.query.komponen;
+    if (req.query.minQty !== undefined && req.query.minQty !== '') {
+      andConditions.push({ qty: { [Op.gte]: parseInt(req.query.minQty, 10) } });
+    }
+    if (req.query.maxQty !== undefined && req.query.maxQty !== '') {
+      andConditions.push({ qty: { [Op.lte]: parseInt(req.query.maxQty, 10) } });
+    }
+    if (req.query.lowStock === 'true' || req.query.stockStatus === 'low') {
+      andConditions.push(sequelize.literal('qty <= minStock'));
+    } else if (req.query.stockStatus === 'medium') {
+      andConditions.push(sequelize.literal('qty > minStock AND qty <= minStock * 2'));
+    } else if (req.query.stockStatus === 'safe') {
+      andConditions.push(sequelize.literal('qty > minStock * 2'));
+    }
+    if (andConditions.length > 0) {
+      where[Op.and] = andConditions;
+    }
     if (req.query.sortBy) {
       const sortOrder = req.query.sortOrder === 'desc' ? 'DESC' : 'ASC';
       order.unshift([req.query.sortBy, sortOrder]);

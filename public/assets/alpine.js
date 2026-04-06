@@ -445,12 +445,17 @@ function warehouseApp() {
             this.loading = true;
             this.error = '';
             try {
-                let url = '/api/items';
-                const params = [];
-                if (this.filter.kolom) params.push(`kolom=${encodeURIComponent(this.filter.kolom)}`);
-                if (this.filter.komponen) params.push(`komponen=${encodeURIComponent(this.filter.komponen)}`);
-                if (this.filter.search) params.push(`search=${encodeURIComponent(this.filter.search)}`);
-                if (params.length) url += '?' + params.join('&');
+                const params = new URLSearchParams();
+                if (this.filter.kolom) params.set('kolom', this.filter.kolom);
+                if (this.filter.komponen) params.set('komponen', this.filter.komponen);
+                if (this.filter.search) params.set('search', this.filter.search);
+                if (this.filter.categoryId) params.set('categoryId', this.filter.categoryId);
+                if (this.filter.stockStatus) params.set('stockStatus', this.filter.stockStatus);
+                if (this.filter.noPo) params.set('noPo', this.filter.noPo);
+                if (this.filter.minQty !== null && this.filter.minQty !== '') params.set('minQty', this.filter.minQty);
+                if (this.filter.maxQty !== null && this.filter.maxQty !== '') params.set('maxQty', this.filter.maxQty);
+                const queryString = params.toString();
+                const url = queryString ? `/api/items?${queryString}` : '/api/items';
                 const response = await this.fetchWithAuth(url);
                 const data = await response.json();
                 this.items = Array.isArray(data) ? data : data.items || [];
