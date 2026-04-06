@@ -842,6 +842,60 @@ app.post('/api/items/bulk/update-qty', isAuthenticated, isAdminOrStaff, async (r
   }
 });
 
+app.post('/api/items/bulk/delete', isAuthenticated, isAdmin, async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { itemIds } = req.body;
+    if (!Array.isArray(itemIds) || itemIds.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'itemIds wajib berupa array dan tidak boleh kosong' });
+    }
+
+    const uniqueItemIds = [...new Set(itemIds.map(id => parseInt(id, 10)).filter(Number.isInteger))];
+    if (uniqueItemIds.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'itemIds tidak valid' });
+    }
+
+    const items = await Item.findAll({
+      where: { id: { [Op.in]: uniqueItemIds } },
+      transaction
+    });
+
+    if (items.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Item tidak ditemukan' });
+    }
+
+    await QtyHistory.bulkCreate(items.map(item => ({
+      itemId: item.id,
+      article: item.article,
+      oldQty: item.qty,
+      newQty: 0,
+      changeAmount: -item.qty,
+      changeType: 'outbound',
+      notes: 'Item deleted from bulk delete',
+      updatedBy: req.session.username
+    })), { transaction });
+
+    const deletedCount = await Item.destroy({
+      where: { id: { [Op.in]: items.map(item => item.id) } },
+      transaction
+    });
+
+    await transaction.commit();
+    res.json({
+      success: true,
+      deletedCount,
+      requestedCount: uniqueItemIds.length,
+      message: `${deletedCount} item berhasil dihapus`
+    });
+  } catch (err) {
+    await transaction.rollback();
+    respondWithError(res, err);
+  }
+});
+
 app.post('/api/items/bulk/assign-category', isAuthenticated, isAdmin, async (req, res) => {
   const transaction = await sequelize.transaction();
   try {

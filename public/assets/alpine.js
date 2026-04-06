@@ -464,6 +464,10 @@ function warehouseApp() {
                 const response = await this.fetchWithAuth(url);
                 const data = await response.json();
                 this.items = Array.isArray(data) ? data : data.items || [];
+                const availableItemIds = new Set(this.items.map(item => Number(item.id)));
+                this.selectedItemsForBulk = this.selectedItemsForBulk
+                    .map(id => Number(id))
+                    .filter(id => availableItemIds.has(id));
             } catch (err) {
                 if (err.message !== 'Unauthorized') {
                     this.error = err.message;
@@ -1071,6 +1075,49 @@ function warehouseApp() {
                 await this.loadItems();
                 await this.loadStats();
                 this.showNotificationMessage(result.message || 'Kategori berhasil diperbarui', 'success');
+            } catch (err) {
+                if (err.message !== 'Unauthorized') {
+                    this.showNotificationMessage(err.message, 'error');
+                }
+            }
+        },
+
+        async bulkDeleteItems() {
+            if (!this.isAdmin) return;
+            if (this.selectedItemsForBulk.length === 0) {
+                this.showNotificationMessage('Pilih minimal satu item', 'error');
+                return;
+            }
+
+            const selectedItems = this.items.filter(item => this.selectedItemsForBulk.includes(item.id));
+            const selectedCount = selectedItems.length;
+            if (selectedCount === 0) {
+                this.showNotificationMessage('Item terpilih tidak ditemukan', 'error');
+                return;
+            }
+
+            const itemPreview = selectedItems.slice(0, 3).map(item => item.article).join(', ');
+            const remainingCount = selectedCount - Math.min(selectedItems.length, 3);
+            const previewText = remainingCount > 0 ? `${itemPreview}, dan ${remainingCount} item lainnya` : itemPreview;
+
+            if (!confirm(`Hapus ${selectedCount} item sekaligus?\n\n${previewText}`)) return;
+
+            try {
+                const res = await this.fetchWithAuth('/api/items/bulk/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        itemIds: this.selectedItemsForBulk
+                    })
+                });
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.error || 'Gagal menghapus item');
+
+                this.selectedItemsForBulk = [];
+                await this.loadItems();
+                await this.loadStats();
+                await this.loadRecentActivities();
+                this.showNotificationMessage(result.message || 'Item berhasil dihapus', 'success');
             } catch (err) {
                 if (err.message !== 'Unauthorized') {
                     this.showNotificationMessage(err.message, 'error');
