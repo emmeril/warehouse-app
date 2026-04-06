@@ -118,16 +118,29 @@ function isAdmin(req, res, next) {
 }
 
 function isAdminOrStaff(req, res, next) {
-  if (req.session.role === 'admin' || req.session.role === 'staff') return next();
-  res.status(403).json({ error: 'Forbidden - Hanya untuk admin atau staff' });
+  if (req.session.role === 'admin') return next();
+  if (!req.session.categoryId) {
+    return res.status(403).json({ error: 'Forbidden - kategori belum ditetapkan untuk user ini' });
+  }
+  if (req.session.role === 'staff' || req.session.role === 'operator') return next();
+  res.status(403).json({ error: 'Forbidden - Hanya untuk admin, operator, atau staff' });
 }
 
 // Helper untuk menambahkan filter kategori ke WHERE clause
 function addCategoryFilter(req, where) {
-  if (req.session.role !== 'admin' && req.session.categoryId) {
-    where.categoryId = req.session.categoryId;
+  if (req.session.role !== 'admin') {
+    if (req.session.categoryId) {
+      where.categoryId = req.session.categoryId;
+    } else {
+      // Tidak boleh mengakses data ketika user non-admin belum terikat kategori
+      where.id = -1;
+    }
   }
   return where;
+}
+
+function hasCategoryAccess(req, categoryId) {
+  return req.session.role === 'admin' || (req.session.categoryId && categoryId === req.session.categoryId);
 }
 
 // ==================== SYNC DATABASE & SEED DEFAULT USERS ====================
@@ -299,6 +312,9 @@ app.post('/api/items', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
     const data = req.body;
     if (req.session.role !== 'admin') {
+      if (!req.session.categoryId) {
+        return res.status(403).json({ error: 'Forbidden - kategori belum ditetapkan untuk user ini' });
+      }
       if (data.categoryId && data.categoryId !== req.session.categoryId) {
         return res.status(403).json({ error: 'Anda hanya dapat menambah item dalam kategori Anda' });
       }
@@ -374,7 +390,7 @@ app.get('/api/items/:id', isAuthenticated, async (req, res) => {
       include: [{ model: Category, attributes: ['id', 'name'] }]
     });
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+    if (!hasCategoryAccess(req, item.categoryId)) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
     res.json(item);
@@ -392,7 +408,7 @@ app.put('/api/items/:id', isAuthenticated, isAdminOrStaff, async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ message: 'Item not found' });
     }
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+    if (!hasCategoryAccess(req, item.categoryId)) {
       await transaction.rollback();
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
@@ -459,7 +475,7 @@ app.post('/api/items/:id/update-qty', isAuthenticated, async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({ message: 'Item not found' });
     }
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+    if (!hasCategoryAccess(req, item.categoryId)) {
       await transaction.rollback();
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
@@ -498,7 +514,7 @@ app.get('/api/items/:id/qty-history', isAuthenticated, async (req, res) => {
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+    if (!hasCategoryAccess(req, item.categoryId)) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
     const history = await QtyHistory.findAll({
@@ -628,7 +644,7 @@ app.post('/api/items/bulk/update-qty', isAuthenticated, isAdminOrStaff, async (r
       const { id, adjustment, newQty } = itemData;
       const item = await Item.findByPk(id);
       if (!item) continue;
-      if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+      if (!hasCategoryAccess(req, item.categoryId)) {
         continue;
       }
       const oldQty = item.qty;
@@ -1006,7 +1022,7 @@ app.get('/api/items/:id/label-data', isAuthenticated, isAdminOrStaff, async (req
       include: [{ model: Category, attributes: ['name'] }]
     });
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+    if (!hasCategoryAccess(req, item.categoryId)) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
     const qrData = JSON.stringify({ id: item.id, article: item.article, komponen: item.komponen, location: item.kolom, category: item.Category?.name, minStock: item.minStock, timestamp: new Date().toISOString(), action: 'scan_update' });
@@ -1133,7 +1149,7 @@ app.post('/api/qr-quick-update', isAuthenticated, async (req, res) => {
     if (!item) item = await Item.findByPk(itemId);
     if (!item) { await transaction.rollback(); return res.status(404).json({ message: 'Item tidak ditemukan' }); }
 
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+    if (!hasCategoryAccess(req, item.categoryId)) {
       await transaction.rollback();
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
@@ -1178,7 +1194,7 @@ app.get('/api/items/:id/qrcode', isAuthenticated, isAdminOrStaff, async (req, re
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+    if (!hasCategoryAccess(req, item.categoryId)) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
     const qrData = JSON.stringify({ id: item.id, article: item.article, komponen: item.komponen, location: item.kolom, minStock: item.minStock, timestamp: new Date().toISOString(), action: 'scan_update' });
@@ -1260,7 +1276,7 @@ app.post('/api/inventory/count', isAuthenticated, async (req, res) => {
       const item = await Item.findByPk(itemId);
       if (!item) { results.push({ qrData, success: false, message: 'Item not found' }); continue; }
 
-      if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+      if (!hasCategoryAccess(req, item.categoryId)) {
         results.push({ qrData, success: false, message: 'No access to this item' });
         continue;
       }
@@ -1292,7 +1308,7 @@ app.get('/api/items/:id/label-qrcode', isAuthenticated, isAdminOrStaff, async (r
   try {
     const item = await Item.findByPk(req.params.id);
     if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+    if (!hasCategoryAccess(req, item.categoryId)) {
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
     const qrData = JSON.stringify({ id: item.id, article: item.article, location: item.kolom || '' });
