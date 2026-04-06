@@ -212,6 +212,9 @@ function warehouseApp() {
         get normalizedSelectedItemsForBulk() {
             return [...new Set(this.selectedItemsForBulk.map(id => Number(id)).filter(Number.isInteger))];
         },
+        isItemSelectedForBulk(itemId) {
+            return this.normalizedSelectedItemsForBulk.includes(Number(itemId));
+        },
         get isCurrentPageFullySelected() {
             return this.currentPageItemIds.length > 0 && this.currentPageItemIds.every(id => this.normalizedSelectedItemsForBulk.includes(id));
         },
@@ -1064,6 +1067,14 @@ function warehouseApp() {
                 ]);
                 this.selectedItemsForBulk = [...combined];
             }
+        },
+
+        toggleBulkItemSelection(itemId, isChecked) {
+            const normalizedId = Number(itemId);
+            const currentSelection = new Set(this.normalizedSelectedItemsForBulk);
+            if (isChecked) currentSelection.add(normalizedId);
+            else currentSelection.delete(normalizedId);
+            this.selectedItemsForBulk = [...currentSelection];
         },
 
         selectAllFilteredItems() {

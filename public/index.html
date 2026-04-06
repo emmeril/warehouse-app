@@ -343,16 +343,16 @@
                                             <option :value="cat.id" x-text="cat.name"></option>
                                         </template>
                                     </select>
-                                    <button @click="bulkAssignCategory" :disabled="selectedItemsForBulk.length === 0 || bulkAssignCategoryId === ''" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
+                                    <button @click="bulkAssignCategory" :disabled="normalizedSelectedItemsForBulk.length === 0 || bulkAssignCategoryId === ''" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
                                         <i class="fas fa-layer-group mr-1"></i> Set Kategori
                                     </button>
-                                    <button @click="bulkDeleteItems" :disabled="selectedItemsForBulk.length === 0" class="bg-red-50 border border-red-200 hover:bg-red-100 text-red-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
+                                    <button @click="bulkDeleteItems" :disabled="normalizedSelectedItemsForBulk.length === 0" class="bg-red-50 border border-red-200 hover:bg-red-100 text-red-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
                                         <i class="fas fa-trash mr-1"></i> Hapus Massal
                                     </button>
                                     <button @click="selectAllFilteredItems" :disabled="filteredItems.length === 0 || isAllFilteredItemsSelected" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
                                         <i class="fas fa-check-double mr-1"></i> Pilih Semua untuk Hapus
                                     </button>
-                                    <button @click="clearBulkSelection" :disabled="selectedItemsForBulk.length === 0" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
+                                    <button @click="clearBulkSelection" :disabled="normalizedSelectedItemsForBulk.length === 0" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50">
                                         <i class="fas fa-times-circle mr-1"></i> Kosongkan Pilihan
                                     </button>
                                 </div>
@@ -392,7 +392,7 @@
                                     <tr class="hover:bg-slate-50 transition" :class="{'bg-red-50/50': item.qty <= item.minStock}">
                                         <template x-if="isAdmin">
                                             <td class="px-4 py-3 whitespace-nowrap">
-                                                <input type="checkbox" x-model="selectedItemsForBulk" :value="item.id" class="rounded text-indigo-600">
+                                                <input type="checkbox" :checked="isItemSelectedForBulk(item.id)" @change="toggleBulkItemSelection(item.id, $event.target.checked)" class="rounded text-indigo-600">
                                             </td>
                                         </template>
                                         <td class="px-4 py-3 whitespace-nowrap font-mono text-sm font-medium text-slate-700" x-text="item.id"></td>
@@ -470,8 +470,8 @@
                                     dari
                                     <span class="font-semibold text-slate-700" x-text="filteredItems.length"></span>
                                     item filter terpilih
-                                    <span x-show="selectedItemsForBulk.length > selectedFilteredItemsCount" class="text-slate-400">
-                                        (total <span x-text="selectedItemsForBulk.length"></span>)
+                                    <span x-show="normalizedSelectedItemsForBulk.length > selectedFilteredItemsCount" class="text-slate-400">
+                                        (total <span x-text="normalizedSelectedItemsForBulk.length"></span>)
                                     </span>
                                 </span>
                             </template>
