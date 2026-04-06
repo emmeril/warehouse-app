@@ -55,7 +55,7 @@
     </style>
 </head>
 <body class="bg-gradient-to-br from-slate-50 via-white to-slate-50/70 antialiased min-h-screen" 
-      x-data="warehouseApp()" 
+      x-data="warehouseApp" 
       x-init="init()" 
       x-cloak>
 
@@ -773,29 +773,29 @@
                     
                     <div class="space-y-3">
                         <div class="flex items-center justify-between">
-                            <p class="font-semibold text-slate-800 text-lg" x-text="scannedItem.article"></p>
+                            <p class="font-semibold text-slate-800 text-lg" x-text="scannedItem?.article || ''"></p>
                             <span class="px-3 py-1 rounded-full text-xs font-semibold" 
-                                  :class="getStatusBadgeClass(scannedItem.qty, scannedItem.minStock)">
-                                <i :class="getStatusIcon(scannedItem.qty, scannedItem.minStock)"></i>
-                                <span x-text="getStatusText(scannedItem.qty, scannedItem.minStock)"></span>
+                                  :class="getStatusBadgeClass(scannedItem?.qty ?? 0, scannedItem?.minStock ?? 0)">
+                                <i :class="getStatusIcon(scannedItem?.qty ?? 0, scannedItem?.minStock ?? 0)"></i>
+                                <span x-text="getStatusText(scannedItem?.qty ?? 0, scannedItem?.minStock ?? 0)"></span>
                             </span>
                         </div>
                         
                         <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                            <div><span class="text-slate-500">ID:</span> <span class="font-mono font-medium" x-text="scannedItem.id"></span></div>
-                            <div><span class="text-slate-500">Komponen:</span> <span class="font-medium" x-text="scannedItem.komponen || '-'"></span></div>
-                            <div><span class="text-slate-500">Kategori:</span> <span class="font-medium" x-text="scannedItem.Category?.name || '-'"></span></div>
-                            <div><span class="text-slate-500">Lokasi:</span> <span class="font-medium" x-text="scannedItem.kolom || '-'"></span></div>
-                            <div><span class="text-slate-500">Min Stock:</span> <span class="font-medium" x-text="scannedItem.minStock"></span></div>
-                            <div><span class="text-slate-500">No. PO:</span> <span class="font-medium" x-text="scannedItem.noPo || '-'"></span></div>
+                            <div><span class="text-slate-500">ID:</span> <span class="font-mono font-medium" x-text="scannedItem?.id || ''"></span></div>
+                            <div><span class="text-slate-500">Komponen:</span> <span class="font-medium" x-text="scannedItem?.komponen || '-'"></span></div>
+                            <div><span class="text-slate-500">Kategori:</span> <span class="font-medium" x-text="scannedItem?.Category?.name || '-'"></span></div>
+                            <div><span class="text-slate-500">Lokasi:</span> <span class="font-medium" x-text="scannedItem?.kolom || '-'"></span></div>
+                            <div><span class="text-slate-500">Min Stock:</span> <span class="font-medium" x-text="scannedItem?.minStock ?? 0"></span></div>
+                            <div><span class="text-slate-500">No. PO:</span> <span class="font-medium" x-text="scannedItem?.noPo || '-'"></span></div>
                         </div>
                         
                         <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
                             <span class="text-sm font-medium text-slate-700">Stok Saat Ini:</span>
-                            <span class="text-2xl font-bold" :class="scannedItem.qty <= scannedItem.minStock ? 'text-red-600' : 'text-green-600'" x-text="scannedItem.qty"></span>
+                            <span class="text-2xl font-bold" :class="(scannedItem?.qty ?? 0) <= (scannedItem?.minStock ?? 0) ? 'text-red-600' : 'text-green-600'" x-text="scannedItem?.qty ?? 0"></span>
                         </div>
                         
-                        <div x-show="scannedItem.qty <= scannedItem.minStock" class="text-xs text-red-600 bg-red-50 p-2 rounded-lg flex items-center gap-1">
+                        <div x-show="(scannedItem?.qty ?? 0) <= (scannedItem?.minStock ?? 0)" class="text-xs text-red-600 bg-red-50 p-2 rounded-lg flex items-center gap-1">
                             <i class="fas fa-exclamation-triangle"></i> Stok berada di bawah minimum! Segera lakukan restock.
                         </div>
                         

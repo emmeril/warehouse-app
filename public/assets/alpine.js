@@ -1426,3 +1426,9 @@ function warehouseApp() {
         }
     };
 }
+
+window.warehouseApp = warehouseApp;
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('warehouseApp', warehouseApp);
+});
