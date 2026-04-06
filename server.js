@@ -96,6 +96,23 @@ const ScanLog = sequelize.define('ScanLog', {
   scannedBy: { type: DataTypes.STRING, defaultValue: 'System' }
 }, { timestamps: true });
 
+// MODEL ARSIP ITEM YANG SUDAH DIHAPUS
+const DeletedItemLog = sequelize.define('DeletedItemLog', {
+  originalItemId: { type: DataTypes.INTEGER, allowNull: false },
+  article: { type: DataTypes.STRING, allowNull: false },
+  komponen: { type: DataTypes.STRING, allowNull: false },
+  noPo: { type: DataTypes.STRING },
+  order: { type: DataTypes.INTEGER, defaultValue: 0 },
+  qty: { type: DataTypes.INTEGER, defaultValue: 0 },
+  minStock: { type: DataTypes.INTEGER, defaultValue: 0 },
+  kolom: { type: DataTypes.STRING },
+  categoryId: { type: DataTypes.INTEGER, allowNull: true },
+  deletedBy: { type: DataTypes.STRING, defaultValue: 'System' },
+  deleteReason: { type: DataTypes.STRING, defaultValue: 'manual_delete' },
+  qtyHistorySnapshot: { type: DataTypes.TEXT },
+  scanLogSnapshot: { type: DataTypes.TEXT }
+}, { timestamps: true, indexes: [{ fields: ['originalItemId'] }, { fields: ['createdAt'] }] });
+
 // ASSOCIATIONS
 Item.hasMany(QtyHistory, { foreignKey: 'itemId', onDelete: 'CASCADE' });
 QtyHistory.belongsTo(Item, { foreignKey: 'itemId' });
@@ -232,6 +249,51 @@ async function findAccessibleItemByPk(req, itemId, options = {}) {
 function respondWithError(res, err) {
   const statusCode = err.statusCode || 500;
   res.status(statusCode).json({ error: err.message });
+}
+
+async function archiveDeletedItems(items, deletedBy, deleteReason, transaction) {
+  if (!Array.isArray(items) || items.length === 0) return;
+
+  const itemIds = items.map(item => item.id);
+  const qtyHistories = await QtyHistory.findAll({
+    where: { itemId: { [Op.in]: itemIds } },
+    order: [['createdAt', 'ASC']],
+    transaction
+  });
+  const scanLogs = await ScanLog.findAll({
+    where: { itemId: { [Op.in]: itemIds } },
+    order: [['createdAt', 'ASC']],
+    transaction
+  });
+
+  const qtyHistoryByItemId = qtyHistories.reduce((result, history) => {
+    const key = history.itemId;
+    if (!result[key]) result[key] = [];
+    result[key].push(history.toJSON());
+    return result;
+  }, {});
+  const scanLogByItemId = scanLogs.reduce((result, log) => {
+    const key = log.itemId;
+    if (!result[key]) result[key] = [];
+    result[key].push(log.toJSON());
+    return result;
+  }, {});
+
+  await DeletedItemLog.bulkCreate(items.map(item => ({
+    originalItemId: item.id,
+    article: item.article,
+    komponen: item.komponen,
+    noPo: item.noPo,
+    order: item.order,
+    qty: item.qty,
+    minStock: item.minStock,
+    kolom: item.kolom,
+    categoryId: item.categoryId,
+    deletedBy,
+    deleteReason,
+    qtyHistorySnapshot: JSON.stringify(qtyHistoryByItemId[item.id] || []),
+    scanLogSnapshot: JSON.stringify(scanLogByItemId[item.id] || [])
+  })), { transaction });
 }
 
 function normalizeCsvHeader(value) {
@@ -608,22 +670,21 @@ app.put('/api/items/:id', isAuthenticated, isAdminOrStaff, async (req, res) => {
 
 // 5. DELETE ITEM (hanya admin)
 app.delete('/api/items/:id', isAuthenticated, isAdmin, async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const item = await Item.findByPk(req.params.id);
-    if (!item) return res.status(404).json({ message: 'Item not found' });
-    await QtyHistory.create({
-      itemId: item.id,
-      article: item.article,
-      oldQty: item.qty,
-      newQty: 0,
-      changeAmount: -item.qty,
-      changeType: 'outbound',
-      notes: 'Item deleted from system',
-      updatedBy: req.session.username
-    });
-    await item.destroy();
+    const item = await Item.findByPk(req.params.id, { transaction });
+    if (!item) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    await archiveDeletedItems([item], req.session.username, 'single_delete', transaction);
+    await QtyHistory.destroy({ where: { itemId: item.id }, transaction });
+    await ScanLog.destroy({ where: { itemId: item.id }, transaction });
+    await item.destroy({ transaction });
+    await transaction.commit();
     res.json({ status: 'deleted', message: 'Item deleted successfully' });
   } catch (err) {
+    await transaction.rollback();
     respondWithError(res, err);
   }
 });
@@ -867,19 +928,19 @@ app.post('/api/items/bulk/delete', isAuthenticated, isAdmin, async (req, res) =>
       return res.status(404).json({ error: 'Item tidak ditemukan' });
     }
 
-    await QtyHistory.bulkCreate(items.map(item => ({
-      itemId: item.id,
-      article: item.article,
-      oldQty: item.qty,
-      newQty: 0,
-      changeAmount: -item.qty,
-      changeType: 'outbound',
-      notes: 'Item deleted from bulk delete',
-      updatedBy: req.session.username
-    })), { transaction });
+    const existingItemIds = items.map(item => item.id);
+    await archiveDeletedItems(items, req.session.username, 'bulk_delete', transaction);
+    await QtyHistory.destroy({
+      where: { itemId: { [Op.in]: existingItemIds } },
+      transaction
+    });
+    await ScanLog.destroy({
+      where: { itemId: { [Op.in]: existingItemIds } },
+      transaction
+    });
 
     const deletedCount = await Item.destroy({
-      where: { id: { [Op.in]: items.map(item => item.id) } },
+      where: { id: { [Op.in]: existingItemIds } },
       transaction
     });
 
