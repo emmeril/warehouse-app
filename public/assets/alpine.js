@@ -209,15 +209,18 @@ function warehouseApp() {
         get filteredItemIds() {
             return this.filteredItems.map(item => Number(item.id));
         },
+        get normalizedSelectedItemsForBulk() {
+            return [...new Set(this.selectedItemsForBulk.map(id => Number(id)).filter(Number.isInteger))];
+        },
         get isCurrentPageFullySelected() {
-            return this.currentPageItemIds.length > 0 && this.currentPageItemIds.every(id => this.selectedItemsForBulk.includes(id));
+            return this.currentPageItemIds.length > 0 && this.currentPageItemIds.every(id => this.normalizedSelectedItemsForBulk.includes(id));
         },
         get isAllFilteredItemsSelected() {
-            return this.filteredItemIds.length > 0 && this.filteredItemIds.every(id => this.selectedItemsForBulk.includes(id));
+            return this.filteredItemIds.length > 0 && this.filteredItemIds.every(id => this.normalizedSelectedItemsForBulk.includes(id));
         },
         get selectedFilteredItemsCount() {
             const filteredSet = new Set(this.filteredItemIds);
-            return this.selectedItemsForBulk.filter(id => filteredSet.has(Number(id))).length;
+            return this.normalizedSelectedItemsForBulk.filter(id => filteredSet.has(id)).length;
         },
         get totalQty() {
             return this.items.reduce((sum, item) => sum + parseInt(item.qty || 0), 0);
@@ -481,8 +484,7 @@ function warehouseApp() {
                 const data = await response.json();
                 this.items = Array.isArray(data) ? data : data.items || [];
                 const availableItemIds = new Set(this.items.map(item => Number(item.id)));
-                this.selectedItemsForBulk = this.selectedItemsForBulk
-                    .map(id => Number(id))
+                this.selectedItemsForBulk = this.normalizedSelectedItemsForBulk
                     .filter(id => availableItemIds.has(id));
             } catch (err) {
                 if (err.message !== 'Unauthorized') {
@@ -1054,10 +1056,10 @@ function warehouseApp() {
         toggleSelectAllBulk() {
             if (this.isCurrentPageFullySelected) {
                 const currentPageSet = new Set(this.currentPageItemIds);
-                this.selectedItemsForBulk = this.selectedItemsForBulk.filter(id => !currentPageSet.has(Number(id)));
+                this.selectedItemsForBulk = this.normalizedSelectedItemsForBulk.filter(id => !currentPageSet.has(id));
             } else {
                 const combined = new Set([
-                    ...this.selectedItemsForBulk.map(id => Number(id)),
+                    ...this.normalizedSelectedItemsForBulk,
                     ...this.currentPageItemIds
                 ]);
                 this.selectedItemsForBulk = [...combined];
@@ -1075,7 +1077,8 @@ function warehouseApp() {
 
         async bulkAssignCategory() {
             if (!this.isAdmin) return;
-            if (this.selectedItemsForBulk.length === 0) {
+            const selectedItemIds = this.normalizedSelectedItemsForBulk;
+            if (selectedItemIds.length === 0) {
                 this.showNotificationMessage('Pilih minimal satu item', 'error');
                 return;
             }
@@ -1084,7 +1087,7 @@ function warehouseApp() {
                 return;
             }
 
-            const selectedCount = this.selectedItemsForBulk.length;
+            const selectedCount = selectedItemIds.length;
             const categoryLabel = this.categories.find(c => c.id == this.bulkAssignCategoryId)?.name || 'kategori terpilih';
 
             if (!confirm(`Terapkan kategori "${categoryLabel}" ke ${selectedCount} item?`)) return;
@@ -1094,7 +1097,7 @@ function warehouseApp() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        itemIds: this.selectedItemsForBulk,
+                        itemIds: selectedItemIds,
                         categoryId: this.bulkAssignCategoryId
                     })
                 });
@@ -1114,12 +1117,14 @@ function warehouseApp() {
 
         async bulkDeleteItems() {
             if (!this.isAdmin) return;
-            if (this.selectedItemsForBulk.length === 0) {
+            const selectedItemIds = this.normalizedSelectedItemsForBulk;
+            if (selectedItemIds.length === 0) {
                 this.showNotificationMessage('Pilih minimal satu item', 'error');
                 return;
             }
 
-            const selectedItems = this.items.filter(item => this.selectedItemsForBulk.includes(item.id));
+            const selectedItemIdSet = new Set(selectedItemIds);
+            const selectedItems = this.items.filter(item => selectedItemIdSet.has(Number(item.id)));
             const selectedCount = selectedItems.length;
             if (selectedCount === 0) {
                 this.showNotificationMessage('Item terpilih tidak ditemukan', 'error');
@@ -1137,7 +1142,7 @@ function warehouseApp() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        itemIds: this.selectedItemsForBulk
+                        itemIds: selectedItemIds
                     })
                 });
                 const result = await res.json();
