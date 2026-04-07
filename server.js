@@ -306,7 +306,7 @@ function buildQrSearchWhere(req, qrData, type = 'auto') {
 }
 
 // ==================== SYNC DATABASE & SEED DEFAULT USERS ====================
-sequelize.sync({ alter: true }).then(async () => {
+sequelize.sync().then(async () => {
   await ensureItemChildCascades();
   const adminExists = await User.findOne({ where: { username: 'admin' } });
   if (!adminExists) {
