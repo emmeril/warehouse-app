@@ -323,8 +323,8 @@ function warehouseApp() {
                     throw new Error(err.error || 'Gagal menambah user');
                 }
                 const user = await res.json();
-                this.users.push(user);
                 this.newUser = { username: '', password: '', role: 'operator', categoryId: null };
+                await this.refreshLiveDataInternal();
                 this.showNotificationMessage(`User ${user.username} berhasil ditambahkan`, 'success');
             } catch (err) {
                 if (err.message !== 'Unauthorized')
@@ -340,7 +340,7 @@ function warehouseApp() {
             try {
                 const res = await this.fetchWithAuth(`/api/users/${userId}`, { method: 'DELETE' });
                 if (!res.ok) throw new Error('Gagal menghapus user');
-                this.users = this.users.filter(u => u.id !== userId);
+                await this.refreshLiveDataInternal();
                 this.showNotificationMessage('User berhasil dihapus', 'success');
             } catch (err) {
                 if (err.message !== 'Unauthorized')
@@ -395,9 +395,9 @@ function warehouseApp() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(this.newCategory)
                 });
-                const cat = await res.json();
-                this.categories.push(cat);
+                await res.json();
                 this.newCategory = { name: '', description: '' };
+                await this.refreshLiveDataInternal();
                 this.showNotificationMessage('Kategori berhasil ditambahkan', 'success');
             } catch (err) {
                 this.showNotificationMessage(err.message, 'error');
@@ -411,7 +411,7 @@ function warehouseApp() {
             if (!confirm(`Hapus kategori "${name}"?`)) return;
             try {
                 await this.fetchWithAuth(`/api/categories/${id}`, { method: 'DELETE' });
-                this.categories = this.categories.filter(c => c.id !== id);
+                await this.refreshLiveDataInternal();
                 this.showNotificationMessage('Kategori berhasil dihapus', 'success');
             } catch (err) {
                 this.showNotificationMessage(err.message, 'error');
@@ -464,7 +464,7 @@ function warehouseApp() {
             }
         },
 
-        async loadItemsForSync() {
+        async loadItemsForSync({ resetPage = false } = {}) {
             if (!this.isAuthenticated) return;
             try {
                 let url = '/api/items';
@@ -483,6 +483,9 @@ function warehouseApp() {
                 const data = await response.json();
                 this.items = Array.isArray(data) ? data : data.items || [];
                 this.itemTotal = Array.isArray(data) ? this.items.length : (data.total ?? this.items.length);
+                if (resetPage) {
+                    this.currentPage = 1;
+                }
             } catch (err) {
                 if (err.message !== 'Unauthorized') {
                     console.warn('Auto sync items failed:', err.message);
@@ -554,9 +557,13 @@ function warehouseApp() {
         },
 
         async refreshLiveData() {
+            return this.refreshLiveDataInternal({ resetPage: false });
+        },
+
+        async refreshLiveDataInternal({ resetPage = false } = {}) {
             if (!this.isAuthenticated) return;
             const tasks = [
-                this.loadItemsForSync(),
+                this.loadItemsForSync({ resetPage }),
                 this.loadStats(),
                 this.loadRecentActivities(),
                 this.loadScanLogs(),
@@ -577,21 +584,53 @@ function warehouseApp() {
         syncOpenSelections() {
             const latestItems = new Map(this.items.map(item => [String(item.id), item]));
 
-            if (this.selectedItemForQtyUpdate?.id && latestItems.has(String(this.selectedItemForQtyUpdate.id))) {
-                this.selectedItemForQtyUpdate = { ...latestItems.get(String(this.selectedItemForQtyUpdate.id)) };
-            }
+            const syncSelectedItem = (selectedItem, modalFlagName, clearFn) => {
+                if (!selectedItem?.id) return null;
+                const latest = latestItems.get(String(selectedItem.id));
+                if (latest) {
+                    return { ...latest };
+                }
 
-            if (this.selectedItemForHistory?.id && latestItems.has(String(this.selectedItemForHistory.id))) {
-                this.selectedItemForHistory = { ...latestItems.get(String(this.selectedItemForHistory.id)) };
-            }
+                if (modalFlagName) {
+                    this[modalFlagName] = false;
+                }
+                if (typeof clearFn === 'function') {
+                    clearFn();
+                }
+                return null;
+            };
 
-            if (this.selectedItemForLabel?.id && latestItems.has(String(this.selectedItemForLabel.id))) {
-                this.selectedItemForLabel = { ...latestItems.get(String(this.selectedItemForLabel.id)) };
-            }
+            this.selectedItemForQtyUpdate = syncSelectedItem(
+                this.selectedItemForQtyUpdate,
+                'showQtyDetailModal'
+            );
+
+            this.selectedItemForHistory = syncSelectedItem(
+                this.selectedItemForHistory,
+                'showQtyHistoryModal',
+                () => { this.qtyHistory = []; }
+            );
+
+            this.selectedItemForLabel = syncSelectedItem(
+                this.selectedItemForLabel,
+                'showLabelModal'
+            );
 
             if (this.bulkDeletePreviewItems.length > 0) {
                 const previewIds = new Set(this.bulkDeletePreviewItems.map(item => String(item.id)));
                 this.bulkDeletePreviewItems = this.items.filter(item => previewIds.has(String(item.id)));
+                if (this.bulkDeletePreviewItems.length === 0) {
+                    this.showBulkDeleteModal = false;
+                    this.clearBulkDeleteSelection();
+                }
+            }
+
+            if (this.selectedItemsForBulkLabel.length > 0) {
+                const currentIds = new Set(this.items.map(item => String(item.id)));
+                this.selectedItemsForBulkLabel = this.selectedItemsForBulkLabel.filter(id => currentIds.has(String(id)));
+                if (this.selectedItemsForBulkLabel.length === 0) {
+                    this.showBulkLabelModal = false;
+                }
             }
         },
 
@@ -610,7 +649,7 @@ function warehouseApp() {
 
                 if (state.version !== this.dataSyncVersion) {
                     this.dataSyncVersion = state.version;
-                    await this.refreshLiveData();
+                    await this.refreshLiveDataInternal({ resetPage: true });
                 }
             } catch (err) {
                 // Abaikan error sementara. Sync berikutnya akan mencoba lagi.
@@ -650,7 +689,7 @@ function warehouseApp() {
                 }
 
                 this.showNotificationMessage(result.message, 'success');
-                await this.loadItems();
+                await this.refreshLiveDataInternal({ resetPage: true });
             } catch (err) {
                 this.showNotificationMessage(err.message, 'error');
             }
@@ -813,9 +852,10 @@ function warehouseApp() {
             if (this.currentItem.qty < 0) { this.showNotificationMessage('Quantity tidak boleh negatif', 'error'); return; }
             this.savingItem = true;
             try {
+                const isUpdate = !!this.currentItem.id;
                 let url = '/api/items';
                 let method = 'POST';
-                if (this.currentItem.id) {
+                if (isUpdate) {
                     url = `/api/items/${this.currentItem.id}`;
                     method = 'PUT';
                 }
@@ -824,10 +864,11 @@ function warehouseApp() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(this.currentItem)
                 });
-                await this.loadItems();
+                this.currentPage = 1;
+                await this.refreshLiveDataInternal({ resetPage: true });
                 this.resetForm();
                 this.showItemModal = false;
-                this.showNotificationMessage(this.currentItem.id ? 'Item berhasil diperbarui' : 'Item baru berhasil ditambahkan', 'success');
+                this.showNotificationMessage(isUpdate ? 'Item berhasil diperbarui' : 'Item baru berhasil ditambahkan', 'success');
             } catch (err) {
                 if (err.message !== 'Unauthorized')
                     this.showNotificationMessage('Gagal menyimpan data: ' + err.message, 'error');
@@ -858,7 +899,7 @@ function warehouseApp() {
             if (!item || !confirm(`Hapus item "${item.article}"?`)) return;
             try {
                 await this.fetchWithAuth(`/api/items/${id}`, { method: 'DELETE' });
-                await this.loadItems();
+                await this.refreshLiveDataInternal();
                 this.showNotificationMessage('Item berhasil dihapus', 'success');
             } catch (err) {
                 if (err.message !== 'Unauthorized')
@@ -947,8 +988,7 @@ function warehouseApp() {
 
                 this.clearBulkDeleteSelection();
                 this.showBulkDeleteModal = false;
-                await this.loadItems();
-                await this.loadRecentActivities();
+                await this.refreshLiveDataInternal();
                 this.showNotificationMessage(result.message || `${selectedItems.length} item berhasil dihapus`, 'success');
             } catch (err) {
                 if (err.message !== 'Unauthorized')
@@ -992,8 +1032,7 @@ function warehouseApp() {
                 if (!response.ok) {
                     throw new Error(result.error || result.message || 'Gagal update qty');
                 }
-                await this.loadItems();
-                await this.loadRecentActivities();
+                await this.refreshLiveDataInternal();
                 this.showQtyDetailModal = false;
                 this.showNotificationMessage(result.message, 'success');
             } catch (err) {

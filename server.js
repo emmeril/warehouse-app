@@ -17,23 +17,28 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 let appReady = false;
 
-async function getLatestTableUpdate(tableName) {
+async function getTableSyncFingerprint(tableName) {
   const rows = await sequelize.query(
-    `SELECT MAX(updatedAt) AS maxUpdatedAt FROM \`${tableName}\``,
+    `SELECT
+      COUNT(*) AS rowCount,
+      COALESCE(MAX(updatedAt), '') AS maxUpdatedAt,
+      COALESCE(MAX(id), 0) AS maxId
+    FROM \`${tableName}\``,
     { type: Sequelize.QueryTypes.SELECT }
   );
-  const latestValue = rows?.[0]?.maxUpdatedAt || null;
-  return latestValue ? new Date(latestValue).getTime() : 0;
+
+  const row = rows?.[0] || {};
+  return `${tableName}:${row.rowCount || 0}:${row.maxUpdatedAt || ''}:${row.maxId || 0}`;
 }
 
 async function getDataSyncState() {
   const tables = ['Items', 'QtyHistories', 'ScanLogs', 'Users', 'Categories', 'Locations'];
-  const versions = await Promise.all(tables.map(getLatestTableUpdate));
-  const version = Math.max(0, ...versions);
+  const fingerprints = await Promise.all(tables.map(getTableSyncFingerprint));
+  const version = fingerprints.join('|');
 
   return {
     version,
-    updatedAt: version ? new Date(version).toISOString() : null
+    updatedAt: new Date().toISOString()
   };
 }
 
