@@ -156,7 +156,9 @@ function hasCategoryAccess(req, categoryId) {
 }
 
 async function getForeignKeyDeleteAction(tableName, columnName = 'itemId', parentTable = 'Items') {
-  const [rows] = await sequelize.query(`PRAGMA foreign_key_list(\`${tableName}\`)`);
+  const rows = await sequelize.query(`PRAGMA foreign_key_list(\`${tableName}\`)`, {
+    type: Sequelize.QueryTypes.SELECT
+  });
   const match = rows.find(row => row.table === parentTable && row.from === columnName);
   return match ? match.on_delete : null;
 }
