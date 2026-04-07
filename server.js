@@ -16,6 +16,27 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 let appReady = false;
+
+async function getLatestTableUpdate(tableName) {
+  const rows = await sequelize.query(
+    `SELECT MAX(updatedAt) AS maxUpdatedAt FROM \`${tableName}\``,
+    { type: Sequelize.QueryTypes.SELECT }
+  );
+  const latestValue = rows?.[0]?.maxUpdatedAt || null;
+  return latestValue ? new Date(latestValue).getTime() : 0;
+}
+
+async function getDataSyncState() {
+  const tables = ['Items', 'QtyHistories', 'ScanLogs', 'Users', 'Categories', 'Locations'];
+  const versions = await Promise.all(tables.map(getLatestTableUpdate));
+  const version = Math.max(0, ...versions);
+
+  return {
+    version,
+    updatedAt: version ? new Date(version).toISOString() : null
+  };
+}
+
 app.use((req, res, next) => {
   if (!appReady) {
     return res.status(503).json({ error: 'Server is starting, please try again in a moment' });
@@ -1519,6 +1540,15 @@ app.get('/scanner', (req, res) => {
     return res.sendFile(scannerPath);
   }
   return res.redirect('/');
+});
+
+app.get('/api/data-sync', isAuthenticated, async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.json(await getDataSyncState());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Error handling

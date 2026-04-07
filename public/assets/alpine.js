@@ -32,6 +32,10 @@ function warehouseApp() {
         notificationMessage: '',
         notificationType: 'success',
         showLowStock: false,
+        dataSyncTimer: null,
+        dataSyncVersion: null,
+        dataSyncPollingMs: 5000,
+        dataSyncInFlight: false,
 
         // Qty update
         showQtyDetailModal: false,
@@ -194,6 +198,7 @@ function warehouseApp() {
             await this.initAuth();
             if (this.isAuthenticated) {
                 await this.loadInitialData();
+                this.startDataSyncPolling();
                 setInterval(() => {
                     this.loadItems();
                     this.loadStats();
@@ -245,6 +250,7 @@ function warehouseApp() {
                 this.bulkDeletePreviewItems = [];
                 this.showBulkDeleteModal = false;
                 await this.loadInitialData();
+                this.startDataSyncPolling();
             } catch (err) {
                 this.loginError = err.message;
             } finally {
@@ -255,6 +261,7 @@ function warehouseApp() {
         async logout() {
             try {
                 await fetch('/api/logout', { method: 'POST' });
+                this.stopDataSyncPolling();
                 this.user = null;
                 this.items = [];
                 this.recentActivities = [];
@@ -441,6 +448,32 @@ function warehouseApp() {
             }
         },
 
+        async loadItemsForSync() {
+            if (!this.isAuthenticated) return;
+            try {
+                let url = '/api/items';
+                const params = [];
+                const searchTerm = this.tableSearch.trim() || this.filter.search.trim();
+                if (this.filter.kolom) params.push(`kolom=${encodeURIComponent(this.filter.kolom)}`);
+                if (this.filter.komponen) params.push(`komponen=${encodeURIComponent(this.filter.komponen)}`);
+                if (this.filter.categoryId) params.push(`categoryId=${encodeURIComponent(this.filter.categoryId)}`);
+                if (searchTerm) params.push(`search=${encodeURIComponent(searchTerm)}`);
+                if (this.showLowStock) params.push('lowStock=true');
+                if (this.sortField) params.push(`sortBy=${encodeURIComponent(this.sortField)}`);
+                params.push(`sortOrder=${this.sortDirection}`);
+                params.push(`limit=${Math.max(this.itemsPerPage * 100, 1000)}`);
+                if (params.length) url += '?' + params.join('&');
+                const response = await this.fetchWithAuth(url);
+                const data = await response.json();
+                this.items = Array.isArray(data) ? data : data.items || [];
+                this.itemTotal = Array.isArray(data) ? this.items.length : (data.total ?? this.items.length);
+            } catch (err) {
+                if (err.message !== 'Unauthorized') {
+                    console.warn('Auto sync items failed:', err.message);
+                }
+            }
+        },
+
         async loadStats() {
             if (!this.isAuthenticated) return;
             try {
@@ -478,6 +511,67 @@ function warehouseApp() {
                 this.availableKomponen = Array.isArray(data.komponen) ? data.komponen : [];
                 this.availableLocations = Array.isArray(data.kolom) ? data.kolom : [];
             } catch (err) {}
+        },
+
+        stopDataSyncPolling() {
+            if (this.dataSyncTimer) {
+                clearInterval(this.dataSyncTimer);
+                this.dataSyncTimer = null;
+            }
+            this.dataSyncVersion = null;
+            this.dataSyncInFlight = false;
+        },
+
+        async startDataSyncPolling() {
+            this.stopDataSyncPolling();
+            if (!this.isAuthenticated) return;
+
+            try {
+                const res = await this.fetchWithAuth('/api/data-sync');
+                const state = await res.json();
+                this.dataSyncVersion = state.version;
+            } catch (err) {}
+
+            this.dataSyncTimer = setInterval(() => {
+                this.checkDataSync();
+            }, this.dataSyncPollingMs);
+        },
+
+        async refreshLiveData() {
+            if (!this.isAuthenticated) return;
+            await Promise.all([
+                this.loadItemsForSync(),
+                this.loadStats(),
+                this.loadRecentActivities(),
+                this.loadScanLogs(),
+                this.loadUniqueValues(),
+                this.loadCategories(),
+                this.isAdmin ? this.loadUsers() : Promise.resolve()
+            ]);
+        },
+
+        async checkDataSync() {
+            if (!this.isAuthenticated || this.dataSyncInFlight) return;
+            this.dataSyncInFlight = true;
+
+            try {
+                const res = await this.fetchWithAuth('/api/data-sync');
+                if (!res.ok) return;
+                const state = await res.json();
+                if (this.dataSyncVersion === null) {
+                    this.dataSyncVersion = state.version;
+                    return;
+                }
+
+                if (state.version !== this.dataSyncVersion) {
+                    this.dataSyncVersion = state.version;
+                    await this.refreshLiveData();
+                }
+            } catch (err) {
+                // Abaikan error sementara. Sync berikutnya akan mencoba lagi.
+            } finally {
+                this.dataSyncInFlight = false;
+            }
         },
 
         // ========== IMPORT EXCEL (ADMIN ONLY) ==========
