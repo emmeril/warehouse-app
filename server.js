@@ -4,8 +4,8 @@
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
-const bodyParser = require('body-parser');
 const { Sequelize, DataTypes, Op } = require('sequelize');
+const fs = require('fs');
 const path = require('path');
 const QRCode = require('qrcode');
 const SQLiteStore = require('connect-sqlite3')(session);
@@ -13,7 +13,7 @@ const ExcelJS = require('exceljs');
 const multer = require('multer');
 
 const app = express();
-app.use(bodyParser.json());
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ==================== DATABASE (SQLite + Sequelize) ====================
@@ -127,6 +127,112 @@ function addCategoryFilter(req, where) {
   if (req.session.role !== 'admin' && req.session.categoryId) {
     where.categoryId = req.session.categoryId;
   }
+  return where;
+}
+
+function parseInteger(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function parseNonNegativeInteger(value, fallback = null) {
+  const parsed = parseInteger(value);
+  if (parsed === null || parsed < 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function hasCategoryAccess(req, categoryId) {
+  return req.session.role === 'admin' || categoryId === req.session.categoryId;
+}
+
+async function findAccessibleItemById(req, res, itemId, options = {}) {
+  const item = await Item.findByPk(itemId, options);
+  if (!item) {
+    res.status(404).json({ message: 'Item not found' });
+    return null;
+  }
+  if (!hasCategoryAccess(req, item.categoryId)) {
+    res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
+    return null;
+  }
+  return item;
+}
+
+function resolveQrReference(qrData) {
+  try {
+    const parsedData = JSON.parse(qrData);
+    if (parsedData.id) {
+      return { itemId: parsedData.id };
+    }
+    if (parsedData.article) {
+      return { article: parsedData.article };
+    }
+  } catch (err) {
+    const numericId = parseInteger(qrData);
+    if (numericId !== null) {
+      return { itemId: numericId };
+    }
+    if (/ITEM\d+/i.test(qrData) || /WH\d+/i.test(qrData)) {
+      const extractedId = parseInteger(qrData.replace(/[^0-9]/g, ''));
+      if (extractedId !== null) {
+        return { itemId: extractedId };
+      }
+    }
+    if (typeof qrData === 'string' && qrData.trim()) {
+      return { article: qrData.trim() };
+    }
+  }
+  return {};
+}
+
+async function findItemFromQrData(qrData, options = {}) {
+  const reference = resolveQrReference(qrData);
+  if (reference.itemId) {
+    return Item.findByPk(reference.itemId, options);
+  }
+  if (reference.article) {
+    return Item.findOne({
+      ...options,
+      where: {
+        article: { [Op.like]: `%${reference.article}%` }
+      }
+    });
+  }
+  return null;
+}
+
+function buildQrSearchWhere(req, qrData, type = 'auto') {
+  const where = {};
+  addCategoryFilter(req, where);
+
+  if (type === 'article') {
+    where.article = { [Op.like]: `%${qrData}%` };
+    return where;
+  }
+
+  const reference = resolveQrReference(qrData);
+  if (type === 'id') {
+    if (reference.itemId) {
+      where.id = reference.itemId;
+    }
+    return where;
+  }
+
+  if (reference.itemId) {
+    where.id = reference.itemId;
+  } else if (reference.article) {
+    where.article = { [Op.like]: `%${reference.article}%` };
+  } else {
+    where[Op.or] = [
+      { article: { [Op.like]: `%${qrData}%` } },
+      { komponen: { [Op.like]: `%${qrData}%` } },
+      { kolom: { [Op.like]: `%${qrData}%` } }
+    ];
+  }
+
   return where;
 }
 
@@ -351,8 +457,8 @@ app.get('/api/items', isAuthenticated, async (req, res) => {
     } else {
       order.unshift(['kolom', 'ASC'], ['article', 'ASC']);
     }
-    const limit = parseInt(req.query.limit) || 100;
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = parseNonNegativeInteger(req.query.limit, 100);
+    const offset = parseNonNegativeInteger(req.query.offset, 0);
     const items = await Item.findAll({
       order,
       where,
@@ -370,13 +476,10 @@ app.get('/api/items', isAuthenticated, async (req, res) => {
 // 3. GET SINGLE ITEM (semua role) dengan pengecekan akses
 app.get('/api/items/:id', isAuthenticated, async (req, res) => {
   try {
-    const item = await Item.findByPk(req.params.id, {
+    const item = await findAccessibleItemById(req, res, req.params.id, {
       include: [{ model: Category, attributes: ['id', 'name'] }]
     });
-    if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
-      return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
-    }
+    if (!item) return;
     res.json(item);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -401,7 +504,11 @@ app.put('/api/items/:id', isAuthenticated, isAdminOrStaff, async (req, res) => {
       return res.status(403).json({ error: 'Tidak dapat mengubah kategori item' });
     }
     const oldQty = item.qty;
-    const newQty = req.body.qty !== undefined ? parseInt(req.body.qty) : oldQty;
+    const newQty = req.body.qty !== undefined ? parseInteger(req.body.qty) : oldQty;
+    if (req.body.qty !== undefined && newQty === null) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'Qty harus berupa angka valid' });
+    }
     await item.update(req.body, { transaction });
     if (req.body.qty !== undefined && oldQty !== newQty) {
       const changeAmount = newQty - oldQty;
@@ -450,6 +557,67 @@ app.delete('/api/items/:id', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
+// 5b. BULK DELETE ITEMS (hanya admin)
+app.delete('/api/items', isAuthenticated, isAdmin, async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { itemIds } = req.body;
+    if (!Array.isArray(itemIds) || itemIds.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Item IDs array is required' });
+    }
+
+    const uniqueItemIds = [...new Set(
+      itemIds
+        .map(id => parseInteger(id))
+        .filter(id => id !== null)
+    )];
+
+    if (uniqueItemIds.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Item IDs array is required' });
+    }
+
+    const items = await Item.findAll({
+      where: { id: { [Op.in]: uniqueItemIds } },
+      transaction
+    });
+
+    if (items.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Item not found' });
+    }
+
+    const deletedItems = [];
+    for (const item of items) {
+      await QtyHistory.create({
+        itemId: item.id,
+        article: item.article,
+        oldQty: item.qty,
+        newQty: 0,
+        changeAmount: -item.qty,
+        changeType: 'outbound',
+        notes: 'Item deleted from system (bulk delete)',
+        updatedBy: req.session.username
+      }, { transaction });
+
+      await item.destroy({ transaction });
+      deletedItems.push({ id: item.id, article: item.article });
+    }
+
+    await transaction.commit();
+    res.json({
+      success: true,
+      message: `${deletedItems.length} item berhasil dihapus`,
+      deletedCount: deletedItems.length,
+      deletedItems
+    });
+  } catch (err) {
+    await transaction.rollback();
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 6. UPDATE QTY dengan detail (semua role) dengan pengecekan akses
 app.post('/api/items/:id/update-qty', isAuthenticated, async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -469,7 +637,17 @@ app.post('/api/items/:id/update-qty', isAuthenticated, async (req, res) => {
       return res.status(400).json({ message: 'Either newQty or adjustment is required' });
     }
     const oldQty = item.qty;
-    let finalQty = newQty !== undefined ? parseInt(newQty) : oldQty + parseInt(adjustment);
+    const parsedNewQty = newQty !== undefined ? parseInteger(newQty) : null;
+    const parsedAdjustment = adjustment !== undefined ? parseInteger(adjustment) : null;
+    if (newQty !== undefined && parsedNewQty === null) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'newQty must be a valid integer' });
+    }
+    if (adjustment !== undefined && parsedAdjustment === null) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'adjustment must be a valid integer' });
+    }
+    let finalQty = parsedNewQty !== null ? parsedNewQty : oldQty + parsedAdjustment;
     if (finalQty < 0) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Quantity cannot be negative' });
@@ -496,15 +674,12 @@ app.post('/api/items/:id/update-qty', isAuthenticated, async (req, res) => {
 // 7. GET QTY HISTORY (semua role) dengan pengecekan akses
 app.get('/api/items/:id/qty-history', isAuthenticated, async (req, res) => {
   try {
-    const item = await Item.findByPk(req.params.id);
-    if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
-      return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
-    }
+    const item = await findAccessibleItemById(req, res, req.params.id);
+    if (!item) return;
     const history = await QtyHistory.findAll({
       where: { itemId: req.params.id },
       order: [['createdAt', 'DESC']],
-      limit: req.query.limit ? parseInt(req.query.limit) : 50
+      limit: parseNonNegativeInteger(req.query.limit, 50)
     });
     res.json(history);
   } catch (err) {
@@ -632,7 +807,11 @@ app.post('/api/items/bulk/update-qty', isAuthenticated, isAdminOrStaff, async (r
         continue;
       }
       const oldQty = item.qty;
-      let finalQty = newQty !== undefined ? parseInt(newQty) : oldQty + parseInt(adjustment);
+      const parsedNewQty = newQty !== undefined ? parseInteger(newQty) : null;
+      const parsedAdjustment = adjustment !== undefined ? parseInteger(adjustment) : null;
+      if (newQty !== undefined && parsedNewQty === null) continue;
+      if (adjustment !== undefined && parsedAdjustment === null) continue;
+      let finalQty = parsedNewQty !== null ? parsedNewQty : oldQty + parsedAdjustment;
       if (finalQty < 0) continue;
       await item.update({ qty: finalQty }, { transaction });
       await QtyHistory.create({
@@ -1002,13 +1181,10 @@ app.post('/api/locations', isAuthenticated, isAdminOrStaff, async (req, res) => 
 // 16. GENERATE LABEL DATA (admin atau staff) dengan pengecekan akses
 app.get('/api/items/:id/label-data', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
-    const item = await Item.findByPk(req.params.id, {
+    const item = await findAccessibleItemById(req, res, req.params.id, {
       include: [{ model: Category, attributes: ['name'] }]
     });
-    if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
-      return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
-    }
+    if (!item) return;
     const qrData = JSON.stringify({ id: item.id, article: item.article, komponen: item.komponen, location: item.kolom, category: item.Category?.name, minStock: item.minStock, timestamp: new Date().toISOString(), action: 'scan_update' });
     const qrCodeDataURL = await QRCode.toDataURL(qrData, { errorCorrectionLevel: 'H', type: 'image/png', margin: 1, scale: 6, color: { dark: '#000000', light: '#FFFFFF' } });
     const labelData = { id: item.id, article: item.article, komponen: item.komponen, noPo: item.noPo, qty: item.qty, minStock: item.minStock, kolom: item.kolom, category: item.Category?.name, createdAt: item.createdAt, barcodeData: `ITEM${item.id.toString().padStart(6, '0')}`, qrData, qrCodeDataURL };
@@ -1054,37 +1230,7 @@ app.post('/api/qr-scan', isAuthenticated, async (req, res) => {
   try {
     const { qrData, type = 'auto' } = req.body;
     if (!qrData) return res.status(400).json({ message: 'QR data is required' });
-
-    let where = {};
-    addCategoryFilter(req, where);
-
-    if (type === 'full' || type === 'auto') {
-      try {
-        const parsedData = JSON.parse(qrData);
-        if (parsedData.id) where.id = parsedData.id;
-        else if (parsedData.article) where.article = { [Op.like]: `%${parsedData.article}%` };
-      } catch (err) {
-        if (!isNaN(qrData)) where.id = parseInt(qrData);
-        else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) {
-          const itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
-          where.id = itemId;
-        } else {
-          where[Op.or] = [
-            { article: { [Op.like]: `%${qrData}%` } },
-            { komponen: { [Op.like]: `%${qrData}%` } },
-            { kolom: { [Op.like]: `%${qrData}%` } }
-          ];
-        }
-      }
-    } else if (type === 'id') {
-      if (!isNaN(qrData)) where.id = parseInt(qrData);
-      else {
-        const itemId = qrData.replace(/[^0-9]/g, '');
-        if (itemId) where.id = parseInt(itemId);
-      }
-    } else if (type === 'article') {
-      where.article = { [Op.like]: `%${qrData}%` };
-    }
+    const where = buildQrSearchWhere(req, qrData, type);
 
     const items = await Item.findAll({
       where,
@@ -1121,27 +1267,27 @@ app.post('/api/qr-quick-update', isAuthenticated, async (req, res) => {
     if (!qrData) { await transaction.rollback(); return res.status(400).json({ message: 'QR data is required' }); }
     if (adjustment === undefined && newQty === undefined) { await transaction.rollback(); return res.status(400).json({ message: 'Either adjustment or newQty is required' }); }
 
-    let itemId; let item;
-    try {
-      const parsedData = JSON.parse(qrData);
-      if (parsedData.id) itemId = parsedData.id;
-    } catch (err) {
-      if (!isNaN(qrData)) itemId = parseInt(qrData);
-      else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
-      else item = await Item.findOne({ where: { article: { [Op.like]: `%${qrData}%` } } });
-    }
-    if (!item) item = await Item.findByPk(itemId);
+    const item = await findItemFromQrData(qrData);
     if (!item) { await transaction.rollback(); return res.status(404).json({ message: 'Item tidak ditemukan' }); }
-
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+    if (!hasCategoryAccess(req, item.categoryId)) {
       await transaction.rollback();
       return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
     }
 
     const oldQty = item.qty;
+    const parsedNewQty = newQty !== undefined ? parseInteger(newQty) : null;
+    const parsedAdjustment = adjustment !== undefined ? parseInteger(adjustment) : null;
+    if (newQty !== undefined && parsedNewQty === null) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'newQty must be a valid integer' });
+    }
+    if (adjustment !== undefined && parsedAdjustment === null) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'adjustment must be a valid integer' });
+    }
     let finalQty;
-    if (newQty !== undefined) finalQty = parseInt(newQty);
-    else finalQty = oldQty + parseInt(adjustment);
+    if (parsedNewQty !== null) finalQty = parsedNewQty;
+    else finalQty = oldQty + parsedAdjustment;
     if (finalQty < 0) { await transaction.rollback(); return res.status(400).json({ message: 'Quantity cannot be negative' }); }
 
     await item.update({ qty: finalQty }, { transaction });
@@ -1176,11 +1322,8 @@ app.post('/api/qr-quick-update', isAuthenticated, async (req, res) => {
 // 20. GENERATE QR CODE IMAGE (admin atau staff) dengan pengecekan akses
 app.get('/api/items/:id/qrcode', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
-    const item = await Item.findByPk(req.params.id);
-    if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
-      return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
-    }
+    const item = await findAccessibleItemById(req, res, req.params.id);
+    if (!item) return;
     const qrData = JSON.stringify({ id: item.id, article: item.article, komponen: item.komponen, location: item.kolom, minStock: item.minStock, timestamp: new Date().toISOString(), action: 'scan_update' });
     const qrCodeDataURL = await QRCode.toDataURL(qrData, { errorCorrectionLevel: 'H', type: 'image/png', margin: 1, scale: 8, color: { dark: '#000000', light: '#FFFFFF' } });
     const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, "");
@@ -1252,20 +1395,19 @@ app.post('/api/inventory/count', isAuthenticated, async (req, res) => {
     const results = []; const discrepancies = [];
     for (const scan of scans) {
       const { qrData, countedQty } = scan;
-      let itemId;
-      try { const parsedData = JSON.parse(qrData); itemId = parsedData.id; } catch (err) {
-        if (!isNaN(qrData)) itemId = parseInt(qrData);
-        else if (qrData.match(/ITEM\d+/i) || qrData.match(/WH\d+/i)) itemId = parseInt(qrData.replace(/[^0-9]/g, ''));
+      const parsedCountedQty = parseInteger(countedQty);
+      if (parsedCountedQty === null) {
+        results.push({ qrData, success: false, message: 'countedQty must be a valid integer' });
+        continue;
       }
-      const item = await Item.findByPk(itemId);
+      const item = await findItemFromQrData(qrData);
       if (!item) { results.push({ qrData, success: false, message: 'Item not found' }); continue; }
-
-      if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
+      if (!hasCategoryAccess(req, item.categoryId)) {
         results.push({ qrData, success: false, message: 'No access to this item' });
         continue;
       }
 
-      if (item.qty !== countedQty) discrepancies.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty, difference: countedQty - item.qty });
+      if (item.qty !== parsedCountedQty) discrepancies.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty: parsedCountedQty, difference: parsedCountedQty - item.qty });
 
       await ScanLog.create({
         itemId: item.id,
@@ -1273,11 +1415,11 @@ app.post('/api/inventory/count', isAuthenticated, async (req, res) => {
         scanType: 'qr',
         scanData: qrData,
         action: 'check_in',
-        result: `Counted: ${countedQty}, System: ${item.qty}`,
+        result: `Counted: ${parsedCountedQty}, System: ${item.qty}`,
         scannedBy: req.session.username
       }, { transaction });
 
-      results.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty, success: true });
+      results.push({ itemId: item.id, article: item.article, systemQty: item.qty, countedQty: parsedCountedQty, success: true });
     }
     await transaction.commit();
     res.json({ success: true, totalScanned: results.length, results, discrepancies, discrepancyCount: discrepancies.length });
@@ -1290,11 +1432,8 @@ app.post('/api/inventory/count', isAuthenticated, async (req, res) => {
 // 24. GENERATE QR CODE FOR LABELS (admin atau staff) dengan pengecekan akses
 app.get('/api/items/:id/label-qrcode', isAuthenticated, isAdminOrStaff, async (req, res) => {
   try {
-    const item = await Item.findByPk(req.params.id);
-    if (!item) return res.status(404).json({ message: 'Item not found' });
-    if (req.session.role !== 'admin' && item.categoryId !== req.session.categoryId) {
-      return res.status(403).json({ error: 'Anda tidak memiliki akses ke item ini' });
-    }
+    const item = await findAccessibleItemById(req, res, req.params.id);
+    if (!item) return;
     const qrData = JSON.stringify({ id: item.id, article: item.article, location: item.kolom || '' });
     const qrCodeDataURL = await QRCode.toDataURL(qrData, { errorCorrectionLevel: 'M', type: 'image/png', margin: 0, scale: 3, color: { dark: '#000000', light: '#FFFFFF' } });
     const base64Data = qrCodeDataURL.replace(/^data:image\/png;base64,/, "");
@@ -1307,7 +1446,13 @@ app.get('/api/items/:id/label-qrcode', isAuthenticated, isAdminOrStaff, async (r
 
 // Route untuk frontend
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/scanner', (req, res) => res.sendFile(path.join(__dirname, 'public', 'scanner.html')));
+app.get('/scanner', (req, res) => {
+  const scannerPath = path.join(__dirname, 'public', 'scanner.html');
+  if (fs.existsSync(scannerPath)) {
+    return res.sendFile(scannerPath);
+  }
+  return res.redirect('/');
+});
 
 // Error handling
 app.use((err, req, res, next) => {

@@ -12,6 +12,9 @@ function warehouseApp() {
 
         // ========== EXISTING STATE ==========
         items: [],
+        itemTotal: 0,
+        availableLocations: [],
+        availableKomponen: [],
         currentItem: { id: null, article: '', komponen: '', noPo: '', order: 0, qty: 0, minStock: 10, kolom: '', categoryId: null },
         filter: {
             kolom: '',
@@ -57,12 +60,16 @@ function warehouseApp() {
         qtyUpdateLoading: false,
         qtyHistoryLoading: false,
         bulkUpdateLoading: false,
+        bulkDeleteLoading: false,
 
         // Label
         showLabelModal: false,
         showBulkLabelModal: false,
+        showBulkDeleteModal: false,
         selectedItemForLabel: null,
         selectedItemsForBulkLabel: [],
+        selectedItemsForBulkDelete: [],
+        bulkDeletePreviewItems: [],
         labelCopies: 1,
         labelSize: 'medium',
         labelShowQR: true,
@@ -124,43 +131,6 @@ function warehouseApp() {
         // Filter items dengan semua kriteria (client-side)
         get filteredItems() {
             let filtered = this.items;
-
-            if (this.showLowStock) {
-                filtered = filtered.filter(item => item.qty <= item.minStock);
-            }
-
-            if (this.tableSearch) {
-                const search = this.tableSearch.toLowerCase();
-                filtered = filtered.filter(item => 
-                    item.article.toLowerCase().includes(search) ||
-                    item.komponen.toLowerCase().includes(search) ||
-                    (item.noPo && item.noPo.toLowerCase().includes(search)) ||
-                    (item.kolom && item.kolom.toLowerCase().includes(search)) ||
-                    (item.Category?.name && item.Category.name.toLowerCase().includes(search))
-                );
-            }
-
-            if (this.filter.search) {
-                const s = this.filter.search.toLowerCase();
-                filtered = filtered.filter(item => 
-                    item.article.toLowerCase().includes(s) ||
-                    item.komponen.toLowerCase().includes(s) ||
-                    (item.noPo && item.noPo.toLowerCase().includes(s))
-                );
-            }
-            if (this.filter.kolom) {
-                filtered = filtered.filter(item => item.kolom === this.filter.kolom);
-            }
-            if (this.filter.komponen) {
-                filtered = filtered.filter(item => item.komponen === this.filter.komponen);
-            }
-            if (this.filter.categoryId) {
-                filtered = filtered.filter(item => item.categoryId == this.filter.categoryId);
-            }
-            if (this.filter.noPo) {
-                const np = this.filter.noPo.toLowerCase();
-                filtered = filtered.filter(item => item.noPo && item.noPo.toLowerCase().includes(np));
-            }
             if (this.filter.stockStatus) {
                 switch (this.filter.stockStatus) {
                     case 'low':
@@ -187,38 +157,33 @@ function warehouseApp() {
         },
 
         get filteredAndSortedItems() {
-            let items = this.filteredItems;
-            items.sort((a, b) => {
-                let aValue = a[this.sortField];
-                let bValue = b[this.sortField];
-                if (this.sortField === 'article' || this.sortField === 'komponen' || this.sortField === 'kolom') {
-                    aValue = aValue || '';
-                    bValue = bValue || '';
-                }
-                if (aValue < bValue) return this.sortDirection === 'asc' ? -1 : 1;
-                if (aValue > bValue) return this.sortDirection === 'asc' ? 1 : -1;
-                return 0;
-            });
+            const items = [...this.filteredItems];
             const start = (this.currentPage - 1) * this.itemsPerPage;
             return items.slice(start, start + this.itemsPerPage);
         },
         get totalQty() {
-            return this.items.reduce((sum, item) => sum + parseInt(item.qty || 0), 0);
+            return this.stats.totalQty ?? this.items.reduce((sum, item) => sum + parseInt(item.qty || 0), 0);
         },
         get totalOrder() {
-            return this.items.reduce((sum, item) => sum + parseInt(item.order || 0), 0);
+            return this.stats.totalOrder ?? this.items.reduce((sum, item) => sum + parseInt(item.order || 0), 0);
         },
         get uniqueLocations() {
-            return [...new Set(this.items.map(item => item.kolom).filter(Boolean))].length;
+            return this.uniqueLocationsList.length;
         },
         get uniqueLocationsList() {
-            return [...new Set(this.items.map(item => item.kolom).filter(Boolean))].sort();
+            const source = this.availableLocations.length
+                ? this.availableLocations
+                : [...new Set(this.items.map(item => item.kolom).filter(Boolean))];
+            return [...new Set(source)].sort();
         },
         get uniqueKomponenList() {
-            return [...new Set(this.items.map(item => item.komponen).filter(Boolean))].sort();
+            const source = this.availableKomponen.length
+                ? this.availableKomponen
+                : [...new Set(this.items.map(item => item.komponen).filter(Boolean))];
+            return [...new Set(source)].sort();
         },
         get lowStockCount() {
-            return this.items.filter(item => item.qty <= item.minStock).length;
+            return this.stats.lowStockItems ?? this.items.filter(item => item.qty <= item.minStock).length;
         },
         get itemsWithNoPo() {
             return this.items.filter(item => item.noPo && item.noPo.trim() !== '').length;
@@ -252,12 +217,12 @@ function warehouseApp() {
         async loadInitialData() {
             await Promise.all([
                 this.loadItems(),
-                this.loadStats(),
                 this.loadRecentActivities(),
                 this.loadScanLogs(),
                 this.loadUniqueValues(),
                 this.loadCategories()
             ]);
+            await this.loadStats();
             this.checkCameraAvailability();
         },
 
@@ -276,6 +241,9 @@ function warehouseApp() {
                 this.user = data.user;
                 this.loginData = { username: '', password: '' };
                 this.showLoginModal = false;
+                this.selectedItemsForBulkDelete = [];
+                this.bulkDeletePreviewItems = [];
+                this.showBulkDeleteModal = false;
                 await this.loadInitialData();
             } catch (err) {
                 this.loginError = err.message;
@@ -291,6 +259,9 @@ function warehouseApp() {
                 this.items = [];
                 this.recentActivities = [];
                 this.recentScans = [];
+                this.selectedItemsForBulkDelete = [];
+                this.bulkDeletePreviewItems = [];
+                this.showBulkDeleteModal = false;
             } catch (err) {
                 this.showNotificationMessage('Logout gagal', 'error');
             }
@@ -445,13 +416,21 @@ function warehouseApp() {
             try {
                 let url = '/api/items';
                 const params = [];
+                const searchTerm = this.tableSearch.trim() || this.filter.search.trim();
                 if (this.filter.kolom) params.push(`kolom=${encodeURIComponent(this.filter.kolom)}`);
                 if (this.filter.komponen) params.push(`komponen=${encodeURIComponent(this.filter.komponen)}`);
-                if (this.filter.search) params.push(`search=${encodeURIComponent(this.filter.search)}`);
+                if (this.filter.categoryId) params.push(`categoryId=${encodeURIComponent(this.filter.categoryId)}`);
+                if (searchTerm) params.push(`search=${encodeURIComponent(searchTerm)}`);
+                if (this.showLowStock) params.push('lowStock=true');
+                if (this.sortField) params.push(`sortBy=${encodeURIComponent(this.sortField)}`);
+                params.push(`sortOrder=${this.sortDirection}`);
+                params.push(`limit=${Math.max(this.itemsPerPage * 100, 1000)}`);
                 if (params.length) url += '?' + params.join('&');
                 const response = await this.fetchWithAuth(url);
                 const data = await response.json();
                 this.items = Array.isArray(data) ? data : data.items || [];
+                this.itemTotal = Array.isArray(data) ? this.items.length : (data.total ?? this.items.length);
+                this.clearBulkDeleteSelection();
             } catch (err) {
                 if (err.message !== 'Unauthorized') {
                     this.error = err.message;
@@ -468,7 +447,8 @@ function warehouseApp() {
                 const res = await this.fetchWithAuth('/api/dashboard/stats');
                 this.stats = await res.json();
                 const today = new Date().toDateString();
-                this.todayScanCount = this.recentScans.filter(scan => 
+                const scans = this.recentScans.length ? this.recentScans : (this.stats.recentScans || []);
+                this.todayScanCount = scans.filter(scan => 
                     new Date(scan.createdAt).toDateString() === today
                 ).length;
             } catch (err) {}
@@ -493,7 +473,10 @@ function warehouseApp() {
         async loadUniqueValues() {
             if (!this.isAuthenticated) return;
             try {
-                await this.fetchWithAuth('/api/unique-values');
+                const res = await this.fetchWithAuth('/api/unique-values');
+                const data = await res.json();
+                this.availableKomponen = Array.isArray(data.komponen) ? data.komponen : [];
+                this.availableLocations = Array.isArray(data.kolom) ? data.kolom : [];
             } catch (err) {}
         },
 
@@ -643,6 +626,9 @@ function warehouseApp() {
                     })
                 });
                 const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.error || result.message || 'Gagal memproses QR Code');
+                }
                 this.lastScanTime = new Date().toISOString();
                 if (result.success && result.items?.length) {
                     this.scannedItems = result.items;
@@ -650,7 +636,7 @@ function warehouseApp() {
                     await this.loadScanLogs();
                     this.showNotificationMessage(`Item ditemukan: ${this.scannedItem.article}`, 'success');
                 } else {
-                    this.showNotificationMessage('Item tidak ditemukan', 'error');
+                    this.showNotificationMessage(result.message || 'Item tidak ditemukan', 'error');
                 }
             } catch (err) {
                 if (err.message !== 'Unauthorized')
@@ -741,6 +727,98 @@ function warehouseApp() {
             }
         },
 
+        clearBulkDeleteSelection() {
+            this.selectedItemsForBulkDelete = [];
+            this.bulkDeletePreviewItems = [];
+        },
+
+        toggleSelectAllBulkDelete() {
+            const visibleIds = this.filteredAndSortedItems.map(item => String(item.id));
+            const selectedIds = this.selectedItemsForBulkDelete.map(id => String(id));
+            const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
+            if (allSelected) {
+                this.selectedItemsForBulkDelete = selectedIds.filter(id => !visibleIds.includes(id));
+            } else {
+                this.selectedItemsForBulkDelete = [...new Set([...selectedIds, ...visibleIds])];
+            }
+        },
+
+        isBulkDeleteVisibleSelected() {
+            const visibleIds = this.filteredAndSortedItems.map(item => String(item.id));
+            const selectedIds = this.selectedItemsForBulkDelete.map(id => String(id));
+            return visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
+        },
+
+        getBulkDeleteVisibleSelectedCount() {
+            const visibleIds = this.filteredAndSortedItems.map(item => String(item.id));
+            const selectedIds = new Set(this.selectedItemsForBulkDelete.map(id => String(id)));
+            return visibleIds.filter(id => selectedIds.has(id)).length;
+        },
+
+        isBulkDeleteItemSelected(itemId) {
+            return this.selectedItemsForBulkDelete.map(id => String(id)).includes(String(itemId));
+        },
+
+        openBulkDeleteModal() {
+            if (!this.isAdmin) return;
+            const selectedIds = this.selectedItemsForBulkDelete.map(id => String(id));
+            const visibleIds = this.filteredAndSortedItems.map(item => String(item.id));
+            this.bulkDeletePreviewItems = this.items.filter(item =>
+                selectedIds.includes(String(item.id)) && visibleIds.includes(String(item.id))
+            );
+            if (this.bulkDeletePreviewItems.length === 0) {
+                this.showNotificationMessage('Pilih minimal satu item pada halaman ini untuk dihapus', 'error');
+                return;
+            }
+            this.showBulkDeleteModal = true;
+        },
+
+        closeBulkDeleteModal() {
+            this.showBulkDeleteModal = false;
+            this.bulkDeletePreviewItems = [];
+        },
+
+        async confirmBulkDelete() {
+            if (!this.isAdmin) return;
+            const selectedItems = this.bulkDeletePreviewItems.filter(item =>
+                this.selectedItemsForBulkDelete.map(id => String(id)).includes(String(item.id))
+            );
+            if (selectedItems.length === 0) {
+                this.showNotificationMessage('Pilih minimal satu item pada halaman ini untuk dihapus', 'error');
+                return;
+            }
+
+            const previewNames = selectedItems.slice(0, 5).map(item => item.article).join(', ');
+            const confirmMessage = selectedItems.length <= 5
+                ? `Hapus ${selectedItems.length} item berikut?\n${previewNames}`
+                : `Hapus ${selectedItems.length} item terpilih?`;
+            if (!confirm(confirmMessage)) return;
+
+            this.bulkDeleteLoading = true;
+            try {
+                const response = await this.fetchWithAuth('/api/items', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemIds: selectedItems.map(item => item.id) })
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.error || result.message || 'Gagal menghapus item');
+                }
+
+                this.clearBulkDeleteSelection();
+                this.showBulkDeleteModal = false;
+                await this.loadItems();
+                await this.loadRecentActivities();
+                this.showNotificationMessage(result.message || `${selectedItems.length} item berhasil dihapus`, 'success');
+            } catch (err) {
+                if (err.message !== 'Unauthorized')
+                    this.showNotificationMessage('Gagal menghapus item: ' + err.message, 'error');
+            } finally {
+                this.bulkDeleteLoading = false;
+            }
+        },
+
         // ========== DETAIL UPDATE QTY ==========
         openQtyDetailModal(item) {
             this.selectedItemForQtyUpdate = { ...item };
@@ -772,6 +850,9 @@ function warehouseApp() {
                     body: JSON.stringify(payload)
                 });
                 const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.error || result.message || 'Gagal update qty');
+                }
                 await this.loadItems();
                 await this.loadRecentActivities();
                 this.showQtyDetailModal = false;
@@ -882,113 +963,25 @@ function warehouseApp() {
                     throw new Error('Data label tidak valid');
 
                 const labelData = result.labels[0];
+                const layout = this.getLabelLayout(this.labelSize);
+                const labelsHTML = Array.from({ length: this.labelCopies }, () =>
+                    this.buildLabelCard(labelData, {
+                        size: this.labelSize,
+                        showQR: this.labelShowQR,
+                        showBarcode: this.labelShowBarcode
+                    })
+                ).join('');
 
-                const labelSize = {
-                    small: { width: '2in', height: '1in', fontSize: '8px' },
-                    medium: { width: '3in', height: '2in', fontSize: '10px' },
-                    large: { width: '4in', height: '3in', fontSize: '12px' }
-                }[this.labelSize];
-
-                const qrSize = {
-                    small: '0.7in',
-                    medium: '0.9in',
-                    large: '1.2in'
-                }[this.labelSize];
-
-                const printWindow = window.open('', '_blank');
-                let labelsHTML = '';
-
-                for (let i = 0; i < this.labelCopies; i++) {
-                    labelsHTML += `
-                        <div class="label" style="
-                            width: ${labelSize.width}; 
-                            height: ${labelSize.height}; 
-                            border: 1px solid #000; 
-                            padding: 0.1in; 
-                            margin: 0.1in; 
-                            display: inline-block; 
-                            vertical-align: top; 
-                            page-break-inside: avoid; 
-                            background: white; 
-                            box-sizing: border-box;
-                            font-size: ${labelSize.fontSize};
-                        ">
-                            <div style="text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                                <div>
-                                    <h4 style="margin: 0.05in 0; font-weight: bold; word-break: break-word; text-transform: uppercase;">
-                                        ${labelData.article}
-                                    </h4>
-                                    <p style="margin: 0.03in 0; color: #555;">${labelData.komponen}</p>
-                                    <p style="margin: 0.02in 0;">ID: ${labelData.id} | Lokasi: ${labelData.kolom || '-'}</p>
-                                    <p style="margin: 0.02in 0;">Kategori: ${labelData.category || '-'}</p>
-                                    <p style="margin: 0.02in 0;">Tanggal: ${new Date().toLocaleDateString('id-ID')}</p>
-                                    <p style="margin: 0.02in 0;">PO: ${labelData.noPo || '-'} | Stok: ${labelData.qty} | Min: ${labelData.minStock}</p>
-                                </div>
-                                <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
-                                    <p style="margin: 0; font-weight: bold; font-size: 1.2em; letter-spacing: 1px;">
-                                        ${labelData.kolom || 'LOKASI'}
-                                    </p>
-                                </div>
-                                <div>
-                                    ${this.labelShowQR && labelData.qrCodeDataURL ? `
-                                    <div style="margin: 0.05in auto; text-align: center;">
-                                        <img src="${labelData.qrCodeDataURL}" alt="QR Code" 
-                                             style="width: ${qrSize}; height: ${qrSize}; image-rendering: crisp-edges;">
-                                    </div>
-                                    ` : ''}
-                                    ${this.labelShowBarcode ? `
-                                    <!-- Barcode bisa ditambahkan jika diperlukan -->
-                                    ` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-
-                const columns = { small: 4, medium: 3, large: 2 }[this.labelSize];
-
-                printWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                        <head>
-                            <title>Label - ${labelData.article}</title>
-                            <style>
-                                * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                                body { font-family: 'Inter', Arial, sans-serif; margin: 0.25in; padding: 0; background: white; }
-                                @media print { 
-                                    body { margin: 0 !important; padding: 0 !important; }
-                                    .label { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                                    .no-print { display: none !important; }
-                                    @page { margin: 0.25in; size: letter; }
-                                }
-                                .label-container { display: grid; grid-template-columns: repeat(${columns}, 1fr); gap: 0.1in; width: 100%; }
-                                .controls { background: #f5f5f5; padding: 10px; margin-bottom: 10px; border-radius: 5px; position: sticky; top: 0; z-index: 100; }
-                                button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 14px; margin-right: 10px; }
-                                button.close-btn { background: #f44336; }
-                                .summary { background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="controls no-print">
-                                <div class="summary">
-                                    <h3>Label untuk: ${labelData.article}</h3>
-                                    <p>Jumlah label: ${this.labelCopies} | Ukuran: ${this.labelSize}</p>
-                                </div>
-                                <button onclick="window.print()"><i class="fas fa-print"></i> Print Labels</button>
-                                <button onclick="window.close()" class="close-btn"><i class="fas fa-times"></i> Close</button>
-                            </div>
-                            <div class="label-container">${labelsHTML}</div>
-                            <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
-                                <p>Warehouse Management System v5.4 - Label</p>
-                                <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
-                            </div>
-                            <script>
-                                window.onafterprint = function() { setTimeout(() => window.close(), 1000); };
-                            <\/script>
-                        </body>
-                    </html>
-                `);
-                printWindow.document.close();
+                const printWindow = this.openLabelPrintWindow({
+                    title: `Label - ${labelData.article}`,
+                    summaryHtml: `
+                        <h3>Label untuk: ${labelData.article}</h3>
+                        <p>Jumlah label: ${this.labelCopies} | Ukuran: ${this.labelSize}</p>
+                    `,
+                    labelsHtml,
+                    columns: layout.columns
+                });
+                if (!printWindow) return;
                 this.showLabelModal = false;
                 this.showNotificationMessage(`Label untuk ${labelData.article} siap dicetak`, 'success');
             } catch (err) {
@@ -1032,116 +1025,28 @@ function warehouseApp() {
                 if (!response.ok) throw new Error('Gagal mengambil data label');
                 const result = await response.json();
                 if (!result.success || !result.labels) throw new Error('Data label tidak valid');
+                const layout = this.getLabelLayout(this.bulkLabelSize);
+                const labelsHTML = result.labels.map(label => {
+                    return Array.from({ length: this.bulkLabelCopies }, () =>
+                        this.buildLabelCard(label, {
+                            size: this.bulkLabelSize,
+                            showQR: this.bulkLabelFormat !== 'simple',
+                            showBarcode: this.bulkLabelFormat === 'detailed'
+                        })
+                    ).join('');
+                }).join('');
 
-                const labelSize = {
-                    small: { width: '2in', height: '1in', fontSize: '8px' },
-                    medium: { width: '3in', height: '2in', fontSize: '10px' },
-                    large: { width: '4in', height: '3in', fontSize: '12px' }
-                }[this.bulkLabelSize];
-
-                const qrSize = {
-                    small: '0.7in',
-                    medium: '0.9in',
-                    large: '1.2in'
-                }[this.bulkLabelSize];
-
-                const printWindow = window.open('', '_blank');
-                let labelsHTML = '';
-
-                result.labels.forEach((label, idx) => {
-                    for (let i = 0; i < this.bulkLabelCopies; i++) {
-                        labelsHTML += `
-                            <div class="label" style="
-                                width: ${labelSize.width}; 
-                                height: ${labelSize.height}; 
-                                border: 1px solid #000; 
-                                padding: 0.1in; 
-                                margin: 0.1in; 
-                                display: inline-block; 
-                                vertical-align: top; 
-                                page-break-inside: avoid; 
-                                background: white; 
-                                box-sizing: border-box;
-                                font-size: ${labelSize.fontSize};
-                            ">
-                                <div style="text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-                                    <div>
-                                        <h4 style="margin: 0.05in 0; font-weight: bold; word-break: break-word; text-transform: uppercase;">
-                                            ${label.article}
-                                        </h4>
-                                        <p style="margin: 0.03in 0; color: #555;">${label.komponen}</p>
-                                        <p style="margin: 0.02in 0;">ID: ${label.id} | Lokasi: ${label.kolom || '-'}</p>
-                                        <p style="margin: 0.02in 0;">Kategori: ${label.category || '-'}</p>
-                                        <p style="margin: 0.02in 0;">Tanggal: ${new Date(label.timestamp || Date.now()).toLocaleDateString('id-ID')}</p>
-                                        <p style="margin: 0.02in 0;">PO: ${label.noPo || '-'} | Stok: ${label.qty} | Min: ${label.minStock}</p>
-                                    </div>
-                                    <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
-                                        <p style="margin: 0; font-weight: bold; font-size: 1.2em; letter-spacing: 1px;">
-                                            ${label.kolom || 'LOKASI'}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        ${this.bulkLabelFormat !== 'simple' && label.qrCodeDataURL ? `
-                                        <div style="margin: 0.05in auto; text-align: center;">
-                                            <img src="${label.qrCodeDataURL}" alt="QR Code" 
-                                                 style="width: ${qrSize}; height: ${qrSize}; image-rendering: crisp-edges;">
-                                        </div>
-                                        ` : ''}
-                                        ${this.bulkLabelFormat === 'detailed' ? `
-                                        <!-- Barcode opsional -->
-                                        ` : ''}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }
+                const printWindow = this.openLabelPrintWindow({
+                    title: `Label Massal - ${selectedItems.length} items`,
+                    summaryHtml: `
+                        <h3>Label Massal</h3>
+                        <p>Jumlah Item: ${selectedItems.length} | Label per Item: ${this.bulkLabelCopies} | Total Label: ${selectedItems.length * this.bulkLabelCopies}</p>
+                        <p>Format: ${this.bulkLabelFormat} | Ukuran: ${this.bulkLabelSize}</p>
+                    `,
+                    labelsHtml,
+                    columns: layout.columns
                 });
-
-                const columns = { small: 4, medium: 3, large: 2 }[this.bulkLabelSize];
-
-                printWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                        <head>
-                            <title>Label Massal - ${selectedItems.length} items</title>
-                            <style>
-                                * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                                body { font-family: 'Inter', Arial, sans-serif; margin: 0.25in; padding: 0; background: white; }
-                                @media print { 
-                                    body { margin: 0 !important; padding: 0 !important; }
-                                    .label { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                                    .no-print { display: none !important; }
-                                    @page { margin: 0.25in; size: letter; }
-                                }
-                                .label-container { display: grid; grid-template-columns: repeat(${columns}, 1fr); gap: 0.1in; width: 100%; }
-                                .controls { background: #f5f5f5; padding: 10px; margin-bottom: 10px; border-radius: 5px; position: sticky; top: 0; z-index: 100; }
-                                button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 14px; margin-right: 10px; }
-                                button.close-btn { background: #f44336; }
-                                .summary { background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="controls no-print">
-                                <div class="summary">
-                                    <h3>Label Massal</h3>
-                                    <p>Jumlah Item: ${selectedItems.length} | Label per Item: ${this.bulkLabelCopies} | Total Label: ${selectedItems.length * this.bulkLabelCopies}</p>
-                                    <p>Format: ${this.bulkLabelFormat} | Ukuran: ${this.bulkLabelSize}</p>
-                                </div>
-                                <button onclick="window.print()"><i class="fas fa-print"></i> Print All Labels</button>
-                                <button onclick="window.close()" class="close-btn"><i class="fas fa-times"></i> Close</button>
-                            </div>
-                            <div class="label-container">${labelsHTML}</div>
-                            <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
-                                <p>Warehouse Management System v5.4 - Label Massal</p>
-                                <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
-                            </div>
-                            <script>
-                                window.onafterprint = function() { setTimeout(() => window.close(), 1000); };
-                            <\/script>
-                        </body>
-                    </html>
-                `);
-                printWindow.document.close();
+                if (!printWindow) return;
                 this.showBulkLabelModal = false;
                 this.showNotificationMessage(
                     `Berhasil membuat ${selectedItems.length * this.bulkLabelCopies} label untuk ${selectedItems.length} item`,
@@ -1173,7 +1078,128 @@ function warehouseApp() {
         // ========== FILTER & UTILITY ==========
         applyFilter() {
             this.currentPage = 1;
+            this.clearBulkDeleteSelection();
             this.loadItems();
+        },
+
+        toggleLowStockFilter() {
+            this.showLowStock = !this.showLowStock;
+            this.currentPage = 1;
+            this.clearBulkDeleteSelection();
+            this.loadItems();
+        },
+
+        getLabelLayout(size) {
+            const config = {
+                small: { width: '2in', height: '1in', fontSize: '8px', qrSize: '0.7in', columns: 4 },
+                medium: { width: '3in', height: '2in', fontSize: '10px', qrSize: '0.9in', columns: 3 },
+                large: { width: '4in', height: '3in', fontSize: '12px', qrSize: '1.2in', columns: 2 }
+            };
+            return config[size] || config.medium;
+        },
+
+        openLabelPrintWindow({ title, summaryHtml, labelsHtml, columns }) {
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                this.showNotificationMessage('Popup print diblokir browser', 'error');
+                return null;
+            }
+
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                        <title>${title}</title>
+                        <style>
+                            * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                            body { font-family: 'Inter', Arial, sans-serif; margin: 0.25in; padding: 0; background: white; }
+                            @media print { 
+                                body { margin: 0 !important; padding: 0 !important; }
+                                .label { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                                .no-print { display: none !important; }
+                                @page { margin: 0.25in; size: letter; }
+                            }
+                            .label-container { display: grid; grid-template-columns: repeat(${columns}, 1fr); gap: 0.1in; width: 100%; }
+                            .controls { background: #f5f5f5; padding: 10px; margin-bottom: 10px; border-radius: 5px; position: sticky; top: 0; z-index: 100; }
+                            button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 14px; margin-right: 10px; }
+                            button.close-btn { background: #f44336; }
+                            .summary { background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="controls no-print">
+                            <div class="summary">
+                                ${summaryHtml}
+                            </div>
+                            <button onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+                            <button onclick="window.close()" class="close-btn"><i class="fas fa-times"></i> Close</button>
+                        </div>
+                        <div class="label-container">${labelsHtml}</div>
+                        <div class="no-print" style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
+                            <p>Warehouse Management System v5.4 - Label</p>
+                            <p>Generated: ${new Date().toLocaleString('id-ID')}</p>
+                        </div>
+                        <script>
+                            window.onafterprint = function() { setTimeout(() => window.close(), 1000); };
+                        <\/script>
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+            return printWindow;
+        },
+
+        buildLabelCard(label, options = {}) {
+            const layout = this.getLabelLayout(options.size || 'medium');
+            const showQR = options.showQR ?? true;
+            const showBarcode = options.showBarcode ?? true;
+            const extraFooter = options.extraFooter || '';
+
+            return `
+                <div class="label" style="
+                    width: ${layout.width}; 
+                    height: ${layout.height}; 
+                    border: 1px solid #000; 
+                    padding: 0.1in; 
+                    margin: 0.1in; 
+                    display: inline-block; 
+                    vertical-align: top; 
+                    page-break-inside: avoid; 
+                    background: white; 
+                    box-sizing: border-box;
+                    font-size: ${layout.fontSize};
+                ">
+                    <div style="text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <h4 style="margin: 0.05in 0; font-weight: bold; word-break: break-word; text-transform: uppercase;">
+                                ${label.article}
+                            </h4>
+                            <p style="margin: 0.03in 0; color: #555;">${label.komponen}</p>
+                            <p style="margin: 0.02in 0;">ID: ${label.id} | Lokasi: ${label.kolom || '-'}</p>
+                            <p style="margin: 0.02in 0;">Kategori: ${label.category || '-'}</p>
+                            <p style="margin: 0.02in 0;">Tanggal: ${new Date(label.timestamp || Date.now()).toLocaleDateString('id-ID')}</p>
+                            <p style="margin: 0.02in 0;">PO: ${label.noPo || '-'} | Stok: ${label.qty} | Min: ${label.minStock}</p>
+                        </div>
+                        <div style="background: #f0f0f0; padding: 0.05in; margin: 0.05in 0; border-radius: 3px;">
+                            <p style="margin: 0; font-weight: bold; font-size: 1.2em; letter-spacing: 1px;">
+                                ${label.kolom || 'LOKASI'}
+                            </p>
+                        </div>
+                        <div>
+                            ${showQR && label.qrCodeDataURL ? `
+                            <div style="margin: 0.05in auto; text-align: center;">
+                                <img src="${label.qrCodeDataURL}" alt="QR Code" 
+                                     style="width: ${layout.qrSize}; height: ${layout.qrSize}; image-rendering: crisp-edges;">
+                            </div>
+                            ` : ''}
+                            ${showBarcode ? `
+                            <!-- Barcode bisa ditambahkan jika diperlukan -->
+                            ` : ''}
+                            ${extraFooter}
+                        </div>
+                    </div>
+                </div>
+            `;
         },
 
         clearFilter() {
@@ -1196,10 +1222,23 @@ function warehouseApp() {
         sortTable(field) {
             if (this.sortField === field) this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
             else { this.sortField = field; this.sortDirection = 'asc'; }
+            this.currentPage = 1;
+            this.clearBulkDeleteSelection();
+            this.loadItems();
         },
 
-        previousPage() { if (this.currentPage > 1) this.currentPage--; },
-        nextPage() { if (this.currentPage * this.itemsPerPage < this.filteredItems.length) this.currentPage++; },
+        previousPage() {
+            if (this.currentPage > 1) {
+                this.currentPage--;
+                this.clearBulkDeleteSelection();
+            }
+        },
+        nextPage() {
+            if (this.currentPage * this.itemsPerPage < this.filteredItems.length) {
+                this.currentPage++;
+                this.clearBulkDeleteSelection();
+            }
+        },
 
         getQtyBadgeClass(qty, minStock) {
             if (qty <= minStock) return 'badge-red';

@@ -244,7 +244,7 @@
                             <i class="fas fa-boxes text-blue-700 text-lg"></i>
                         </div>
                         <p class="text-xs font-medium text-slate-500">Total Item</p>
-                        <p class="text-xl font-bold text-slate-800 leading-tight" x-text="stats.totalItems || items.length"></p>
+                        <p class="text-xl font-bold text-slate-800 leading-tight" x-text="stats.totalItems || itemTotal"></p>
                     </div>
 
                     <!-- Total Qty -->
@@ -315,12 +315,14 @@
                 </div>
 
                 <!-- CARD TABEL ITEM (dengan search, filter cepat) -->
-                <div class="bg-white rounded-2xl shadow-lg border border-slate-200/70 overflow-hidden fade-in">
+                <div class="bg-white rounded-2xl shadow-lg border border-slate-200/70 overflow-hidden fade-in"
+                     data-bulk-delete-scope
+                     @keydown.window.ctrl.a.prevent="if (isAdmin && $event.target.closest('[data-bulk-delete-scope]') && !['INPUT','TEXTAREA','SELECT'].includes($event.target.tagName) && !$event.target.isContentEditable) toggleSelectAllBulkDelete()">
                     <div class="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
                         <div class="flex items-center gap-2">
                             <i class="fas fa-boxes text-indigo-600 text-lg"></i>
                             <h2 class="font-bold text-slate-800">Daftar Item Gudang</h2>
-                            <span class="bg-slate-200 text-slate-700 text-xs px-2.5 py-1 rounded-full" x-text="items.length + ' item'"></span>
+                            <span class="bg-slate-200 text-slate-700 text-xs px-2.5 py-1 rounded-full" x-text="itemTotal + ' item'"></span>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <div class="relative">
@@ -330,7 +332,7 @@
                             <button @click="loadItems" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center">
                                 <i class="fas fa-sync-alt mr-1" :class="{'fa-spin': loading}"></i> Refresh
                             </button>
-                            <button @click="showLowStock = !showLowStock" 
+                            <button @click="toggleLowStockFilter" 
                                     :class="showLowStock ? 'bg-red-600 text-white border-red-600' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'"
                                     class="border font-medium py-2 px-3 rounded-xl text-sm flex items-center">
                                 <i class="fas fa-exclamation-triangle mr-1"></i> Low Stock
@@ -338,6 +340,29 @@
                             <template x-if="canManageItems">
                                 <button @click="openBulkLabelModal" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center">
                                     <i class="fas fa-tags mr-1"></i> Label Massal
+                                </button>
+                            </template>
+                            <template x-if="isAdmin">
+                                <button @click="openBulkDeleteModal"
+                                        :disabled="getBulkDeleteVisibleSelectedCount() === 0 || bulkDeleteLoading"
+                                        class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <i class="fas fa-trash-alt mr-1" :class="{'fa-spin': bulkDeleteLoading}"></i>
+                                    Hapus Massal
+                                    <span class="ml-2 bg-white/20 px-2 py-0.5 rounded-full text-xs" x-text="getBulkDeleteVisibleSelectedCount()"></span>
+                                </button>
+                            </template>
+                            <template x-if="isAdmin">
+                                <button @click="toggleSelectAllBulkDelete"
+                                        class="bg-white border border-red-200 hover:bg-red-50 text-red-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center">
+                                    <i class="fas fa-check-double mr-1"></i>
+                                    <span x-text="isBulkDeleteVisibleSelected() ? 'Batal Pilih Halaman' : 'Pilih Halaman Ini'"></span>
+                                </button>
+                            </template>
+                            <template x-if="isAdmin">
+                                <button @click="clearBulkDeleteSelection"
+                                        :disabled="getBulkDeleteVisibleSelectedCount() === 0"
+                                        class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <i class="fas fa-eraser mr-1"></i> Reset Pilihan
                                 </button>
                             </template>
                         </div>
@@ -348,6 +373,14 @@
                         <table class="min-w-full divide-y divide-slate-200">
                             <thead class="bg-slate-100/80 sticky top-0">
                                 <tr>
+                                    <template x-if="isAdmin">
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                                            <input type="checkbox"
+                                                   class="rounded border-slate-300 text-red-600 focus:ring-red-500"
+                                                   @change="toggleSelectAllBulkDelete"
+                                                   :checked="isBulkDeleteVisibleSelected()">
+                                        </th>
+                                    </template>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer" @click="sortTable('id')">ID <i class="fas fa-sort ml-1 text-slate-400"></i></th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider cursor-pointer" @click="sortTable('article')">Article <i class="fas fa-sort ml-1 text-slate-400"></i></th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Komponen</th>
@@ -362,10 +395,28 @@
                             </thead>
                             <tbody class="bg-white divide-y divide-slate-100">
                                 <template x-for="item in filteredAndSortedItems" :key="item.id">
-                                    <tr class="hover:bg-slate-50 transition" :class="{'bg-red-50/50': item.qty <= item.minStock}">
+                                    <tr class="hover:bg-slate-50 transition"
+                                        :class="{
+                                            'bg-red-50/50': item.qty <= item.minStock,
+                                            'ring-2 ring-red-200 bg-red-50/80': isBulkDeleteItemSelected(item.id)
+                                        }">
+                                        <template x-if="isAdmin">
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <input type="checkbox"
+                                                       class="rounded border-slate-300 text-red-600 focus:ring-red-500"
+                                                       x-model="selectedItemsForBulkDelete"
+                                                       :value="item.id">
+                                            </td>
+                                        </template>
                                         <td class="px-4 py-3 whitespace-nowrap font-mono text-sm font-medium text-slate-700" x-text="item.id"></td>
                                         <td class="px-4 py-3">
-                                            <div class="text-sm font-semibold text-slate-800" x-text="item.article"></div>
+                                            <div class="flex items-center gap-2">
+                                                <div class="text-sm font-semibold text-slate-800" x-text="item.article"></div>
+                                                <span x-show="isBulkDeleteItemSelected(item.id)"
+                                                      class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-700 border border-red-200">
+                                                    Terpilih
+                                                </span>
+                                            </div>
                                             <div class="text-xs text-slate-500">Min: <span x-text="item.minStock"></span></div>
                                         </td>
                                         <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-700" x-text="item.komponen"></td>
@@ -414,7 +465,7 @@
                                     </tr>
                                 </template>
                                 <tr x-show="filteredAndSortedItems.length === 0 && !loading">
-                                    <td colspan="10" class="px-6 py-12 text-center">
+                                    <td :colspan="isAdmin ? 11 : 10" class="px-6 py-12 text-center">
                                         <div class="flex flex-col items-center">
                                             <i class="fas fa-box-open text-slate-300 text-5xl mb-3"></i>
                                             <p class="text-slate-500 font-medium">Tidak ada data item</p>
@@ -429,7 +480,7 @@
                     <!-- PAGINATION SEDERHANA -->
                     <div class="px-5 py-4 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-50/50">
                         <div class="text-sm text-slate-600">
-                            Menampilkan <span class="font-semibold" x-text="filteredAndSortedItems.length"></span> dari <span class="font-semibold" x-text="items.length"></span> item
+                            Menampilkan <span class="font-semibold" x-text="filteredAndSortedItems.length"></span> dari <span class="font-semibold" x-text="itemTotal"></span> item
                         </div>
                         <div class="flex items-center gap-4">
                             <span class="text-sm text-slate-600"><span class="font-semibold text-red-600" x-text="lowStockCount"></span> stok rendah</span>
@@ -438,7 +489,7 @@
                                     <i class="fas fa-chevron-left text-xs"></i>
                                 </button>
                                 <span class="w-8 h-8 flex items-center justify-center text-sm font-medium" x-text="currentPage"></span>
-                                <button @click="nextPage" :disabled="currentPage * itemsPerPage >= items.length" class="w-8 h-8 flex items-center justify-center border border-slate-300 rounded-lg disabled:opacity-40 hover:bg-slate-100">
+                                <button @click="nextPage" :disabled="currentPage * itemsPerPage >= filteredItems.length" class="w-8 h-8 flex items-center justify-center border border-slate-300 rounded-lg disabled:opacity-40 hover:bg-slate-100">
                                     <i class="fas fa-chevron-right text-xs"></i>
                                 </button>
                             </div>
@@ -521,7 +572,7 @@
             </div>
             <div class="flex gap-4 mt-2 md:mt-0">
                 <span><i class="far fa-calendar mr-1"></i><span x-text="new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })"></span></span>
-                <span><i class="fas fa-database mr-1"></i><span x-text="items.length + ' items'"></span></span>
+                <span><i class="fas fa-database mr-1"></i><span x-text="itemTotal + ' items'"></span></span>
                 <span><i class="fas fa-qrcode mr-1"></i><span x-text="todayScanCount + ' scan'"></span></span>
             </div>
         </footer>
@@ -1128,6 +1179,84 @@
                         <i class="fas fa-print"></i> Cetak Label
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== MODAL BULK DELETE ========== -->
+    <div x-show="showBulkDeleteModal && isAdmin"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 scale-90"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-90"
+         class="fixed inset-0 bg-slate-900/50 backdrop-blur-md z-50 flex items-center justify-center p-4"
+         @click.away="closeBulkDeleteModal"
+         x-cloak>
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden" @click.stop>
+            <div class="sticky top-0 bg-white/90 backdrop-blur-sm p-6 border-b border-slate-100 flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fas fa-triangle-exclamation text-red-600"></i> Konfirmasi Hapus Massal
+                    </h3>
+                    <p class="text-sm text-slate-500 mt-1">
+                        Hanya item pada halaman aktif yang akan dihapus.
+                    </p>
+                </div>
+                <button @click="closeBulkDeleteModal" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div class="bg-red-50 border border-red-200 rounded-2xl p-4">
+                    <p class="text-red-800 font-semibold">
+                        Kamu akan menghapus <span x-text="bulkDeletePreviewItems.length"></span> item.
+                    </p>
+                    <p class="text-sm text-red-700 mt-1">
+                        Data history quantity tetap tercatat, dan aksi ini tidak bisa dibatalkan.
+                    </p>
+                </div>
+                <div class="border border-slate-200 rounded-2xl overflow-hidden">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">ID</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Article</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Komponen</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Lokasi</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">Qty</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+                            <template x-for="item in bulkDeletePreviewItems" :key="item.id">
+                                <tr>
+                                    <td class="px-4 py-3 text-sm font-mono" x-text="item.id"></td>
+                                    <td class="px-4 py-3 text-sm font-medium" x-text="item.article"></td>
+                                    <td class="px-4 py-3 text-sm" x-text="item.komponen"></td>
+                                    <td class="px-4 py-3 text-sm" x-text="item.kolom || '-'"></td>
+                                    <td class="px-4 py-3 text-sm" x-text="item.qty"></td>
+                                </tr>
+                            </template>
+                            <tr x-show="bulkDeletePreviewItems.length === 0">
+                                <td colspan="5" class="px-4 py-8 text-center text-slate-500">
+                                    Tidak ada item terpilih
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="p-6 border-t border-slate-100 flex flex-col sm:flex-row gap-3 sm:justify-end">
+                <button @click="closeBulkDeleteModal" class="px-5 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50">
+                    Batal
+                </button>
+                <button @click="confirmBulkDelete"
+                        :disabled="bulkDeleteLoading || bulkDeletePreviewItems.length === 0"
+                        class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-5 rounded-xl shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fas fa-trash-alt mr-2" :class="{'fa-spin': bulkDeleteLoading}"></i>
+                    <span x-text="bulkDeleteLoading ? 'Menghapus...' : `Hapus ${bulkDeletePreviewItems.length} Item`"></span>
+                </button>
             </div>
         </div>
     </div>
