@@ -1156,7 +1156,7 @@ function warehouseApp() {
                         <h3>Label untuk: ${labelData.article}</h3>
                         <p>Jumlah label: ${this.labelCopies} | Ukuran: ${this.labelSize}</p>
                     `,
-                    labelsHtml,
+                    labelsHtml: labelsHTML,
                     columns: layout.columns
                 });
                 if (!printWindow) return;
@@ -1221,7 +1221,7 @@ function warehouseApp() {
                         <p>Jumlah Item: ${selectedItems.length} | Label per Item: ${this.bulkLabelCopies} | Total Label: ${selectedItems.length * this.bulkLabelCopies}</p>
                         <p>Format: ${this.bulkLabelFormat} | Ukuran: ${this.bulkLabelSize}</p>
                     `,
-                    labelsHtml,
+                    labelsHtml: labelsHTML,
                     columns: layout.columns
                 });
                 if (!printWindow) return;
