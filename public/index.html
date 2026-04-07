@@ -344,25 +344,26 @@
                             </template>
                             <template x-if="isAdmin">
                                 <button @click="openBulkDeleteModal"
+                                        title="Hapus massal"
                                         :disabled="getBulkDeleteVisibleSelectedCount() === 0 || bulkDeleteLoading"
-                                        class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <i class="fas fa-trash-alt mr-1" :class="{'fa-spin': bulkDeleteLoading}"></i>
-                                    Hapus Massal
-                                    <span class="ml-2 bg-white/20 px-2 py-0.5 rounded-full text-xs" x-text="getBulkDeleteVisibleSelectedCount()"></span>
+                                        class="relative w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <i class="fas fa-trash-alt" :class="{'fa-spin': bulkDeleteLoading}"></i>
+                                    <span class="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-white text-red-700 rounded-full text-[10px] font-bold flex items-center justify-center border border-red-100 shadow-sm" x-text="getBulkDeleteVisibleSelectedCount()"></span>
                                 </button>
                             </template>
                             <template x-if="isAdmin">
                                 <button @click="toggleSelectAllBulkDelete"
-                                        class="bg-white border border-red-200 hover:bg-red-50 text-red-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center">
-                                    <i class="fas fa-check-double mr-1"></i>
-                                    <span x-text="isBulkDeleteVisibleSelected() ? 'Batal Pilih Halaman' : 'Pilih Halaman Ini'"></span>
+                                        :title="isBulkDeleteVisibleSelected() ? 'Batal pilih halaman' : 'Pilih halaman ini'"
+                                        class="w-10 h-10 bg-white border border-red-200 hover:bg-red-50 text-red-700 rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-check-double"></i>
                                 </button>
                             </template>
                             <template x-if="isAdmin">
                                 <button @click="clearBulkDeleteSelection"
+                                        title="Reset pilihan"
                                         :disabled="getBulkDeleteVisibleSelectedCount() === 0"
-                                        class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium py-2 px-3 rounded-xl text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <i class="fas fa-eraser mr-1"></i> Reset Pilihan
+                                        class="w-10 h-10 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <i class="fas fa-eraser"></i>
                                 </button>
                             </template>
                         </div>
