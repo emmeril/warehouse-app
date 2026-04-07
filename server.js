@@ -15,6 +15,13 @@ const multer = require('multer');
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+let appReady = false;
+app.use((req, res, next) => {
+  if (!appReady) {
+    return res.status(503).json({ error: 'Server is starting, please try again in a moment' });
+  }
+  next();
+});
 
 // ==================== DATABASE (SQLite + Sequelize) ====================
 const sequelize = new Sequelize({
@@ -148,6 +155,68 @@ function hasCategoryAccess(req, categoryId) {
   return req.session.role === 'admin' || categoryId === req.session.categoryId;
 }
 
+async function getForeignKeyDeleteAction(tableName, columnName = 'itemId', parentTable = 'Items') {
+  const [rows] = await sequelize.query(`PRAGMA foreign_key_list(\`${tableName}\`)`);
+  const match = rows.find(row => row.table === parentTable && row.from === columnName);
+  return match ? match.on_delete : null;
+}
+
+async function rebuildTableWithCascade(tableName, createSql) {
+  const transaction = await sequelize.transaction();
+  try {
+    const tempTableName = `${tableName}_new`;
+    await sequelize.query(`DROP TABLE IF EXISTS \`${tempTableName}\``, { transaction });
+    await sequelize.query(createSql, { transaction });
+    await sequelize.query(`INSERT INTO \`${tempTableName}\` SELECT * FROM \`${tableName}\``, { transaction });
+    await sequelize.query(`DROP TABLE \`${tableName}\``, { transaction });
+    await sequelize.query(`ALTER TABLE \`${tempTableName}\` RENAME TO \`${tableName}\``, { transaction });
+    await transaction.commit();
+  } catch (err) {
+    await transaction.rollback();
+    throw err;
+  }
+}
+
+async function ensureItemChildCascades() {
+  const qtyHistoryDeleteAction = await getForeignKeyDeleteAction('QtyHistories');
+  const scanLogDeleteAction = await getForeignKeyDeleteAction('ScanLogs');
+
+  if (qtyHistoryDeleteAction !== 'CASCADE') {
+    await rebuildTableWithCascade('QtyHistories', `
+      CREATE TABLE \`QtyHistories_new\` (
+        \`id\` INTEGER PRIMARY KEY,
+        \`itemId\` INTEGER NOT NULL REFERENCES \`Items\` (\`id\`) ON DELETE CASCADE,
+        \`article\` VARCHAR(255) NOT NULL,
+        \`oldQty\` INTEGER NOT NULL,
+        \`newQty\` INTEGER NOT NULL,
+        \`changeAmount\` INTEGER NOT NULL,
+        \`changeType\` TEXT DEFAULT 'manual',
+        \`notes\` TEXT,
+        \`updatedBy\` VARCHAR(255) DEFAULT 'System',
+        \`createdAt\` DATETIME NOT NULL,
+        \`updatedAt\` DATETIME NOT NULL
+      )
+    `);
+  }
+
+  if (scanLogDeleteAction !== 'CASCADE') {
+    await rebuildTableWithCascade('ScanLogs', `
+      CREATE TABLE \`ScanLogs_new\` (
+        \`id\` INTEGER PRIMARY KEY,
+        \`itemId\` INTEGER NOT NULL REFERENCES \`Items\` (\`id\`) ON DELETE CASCADE,
+        \`article\` VARCHAR(255),
+        \`scanType\` TEXT DEFAULT 'qr',
+        \`scanData\` TEXT,
+        \`action\` TEXT,
+        \`result\` TEXT,
+        \`scannedBy\` VARCHAR(255) DEFAULT 'System',
+        \`createdAt\` DATETIME NOT NULL,
+        \`updatedAt\` DATETIME NOT NULL
+      )
+    `);
+  }
+}
+
 async function findAccessibleItemById(req, res, itemId, options = {}) {
   const item = await Item.findByPk(itemId, options);
   if (!item) {
@@ -238,6 +307,7 @@ function buildQrSearchWhere(req, qrData, type = 'auto') {
 
 // ==================== SYNC DATABASE & SEED DEFAULT USERS ====================
 sequelize.sync({ alter: true }).then(async () => {
+  await ensureItemChildCascades();
   const adminExists = await User.findOne({ where: { username: 'admin' } });
   if (!adminExists) {
     const hashedPassword = await bcrypt.hash('admin', 10);
@@ -256,6 +326,10 @@ sequelize.sync({ alter: true }).then(async () => {
     await User.create({ username: 'staff', password: hashedPassword, role: 'staff', categoryId: null });
     console.log('✅ Default staff created (staff/staff)');
   }
+  appReady = true;
+}).catch(err => {
+  console.error('Failed to bootstrap application:', err);
+  process.exit(1);
 });
 
 // ==================== AUTH ROUTES ====================
@@ -537,22 +611,22 @@ app.put('/api/items/:id', isAuthenticated, isAdminOrStaff, async (req, res) => {
 
 // 5. DELETE ITEM (hanya admin)
 app.delete('/api/items/:id', isAuthenticated, isAdmin, async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const item = await Item.findByPk(req.params.id);
-    if (!item) return res.status(404).json({ message: 'Item not found' });
-    await QtyHistory.create({
-      itemId: item.id,
-      article: item.article,
-      oldQty: item.qty,
-      newQty: 0,
-      changeAmount: -item.qty,
-      changeType: 'outbound',
-      notes: 'Item deleted from system',
-      updatedBy: req.session.username
-    });
-    await item.destroy();
+    const item = await Item.findByPk(req.params.id, { transaction });
+    if (!item) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Item not found' });
+    }
+
+    await ScanLog.destroy({ where: { itemId: item.id }, transaction });
+    await QtyHistory.destroy({ where: { itemId: item.id }, transaction });
+    await item.destroy({ transaction });
+
+    await transaction.commit();
     res.json({ status: 'deleted', message: 'Item deleted successfully' });
   } catch (err) {
+    await transaction.rollback();
     res.status(500).json({ error: err.message });
   }
 });
@@ -590,17 +664,8 @@ app.delete('/api/items', isAuthenticated, isAdmin, async (req, res) => {
 
     const deletedItems = [];
     for (const item of items) {
-      await QtyHistory.create({
-        itemId: item.id,
-        article: item.article,
-        oldQty: item.qty,
-        newQty: 0,
-        changeAmount: -item.qty,
-        changeType: 'outbound',
-        notes: 'Item deleted from system (bulk delete)',
-        updatedBy: req.session.username
-      }, { transaction });
-
+      await ScanLog.destroy({ where: { itemId: item.id }, transaction });
+      await QtyHistory.destroy({ where: { itemId: item.id }, transaction });
       await item.destroy({ transaction });
       deletedItems.push({ id: item.id, article: item.article });
     }
