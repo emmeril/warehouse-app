@@ -34,7 +34,7 @@ function warehouseApp() {
         showLowStock: false,
         dataSyncTimer: null,
         dataSyncVersion: null,
-        dataSyncPollingMs: 5000,
+        dataSyncPollingMs: 2000,
         dataSyncInFlight: false,
 
         // Qty update
@@ -175,9 +175,10 @@ function warehouseApp() {
             return this.uniqueLocationsList.length;
         },
         get uniqueLocationsList() {
-            const source = this.availableLocations.length
-                ? this.availableLocations
-                : [...new Set(this.items.map(item => item.kolom).filter(Boolean))];
+            const source = [
+                ...this.availableLocations,
+                ...this.items.map(item => item.kolom).filter(Boolean)
+            ];
             return [...new Set(source)].sort();
         },
         get uniqueKomponenList() {
@@ -220,13 +221,17 @@ function warehouseApp() {
         },
 
         async loadInitialData() {
-            await Promise.all([
+            const tasks = [
                 this.loadItems(),
                 this.loadRecentActivities(),
                 this.loadScanLogs(),
                 this.loadUniqueValues(),
                 this.loadCategories()
-            ]);
+            ];
+            if (this.canManageItems) {
+                tasks.push(this.loadLocations());
+            }
+            await Promise.all(tasks);
             await this.loadStats();
             this.checkCameraAvailability();
         },
@@ -363,6 +368,17 @@ function warehouseApp() {
             try {
                 const res = await this.fetchWithAuth('/api/categories');
                 this.categories = await res.json();
+            } catch (err) {}
+        },
+
+        async loadLocations() {
+            if (!this.canManageItems) return;
+            try {
+                const res = await this.fetchWithAuth('/api/locations');
+                const data = await res.json();
+                this.availableLocations = Array.isArray(data)
+                    ? data.map(location => location.name).filter(Boolean)
+                    : [];
             } catch (err) {}
         },
 
@@ -539,7 +555,7 @@ function warehouseApp() {
 
         async refreshLiveData() {
             if (!this.isAuthenticated) return;
-            await Promise.all([
+            const tasks = [
                 this.loadItemsForSync(),
                 this.loadStats(),
                 this.loadRecentActivities(),
@@ -547,7 +563,36 @@ function warehouseApp() {
                 this.loadUniqueValues(),
                 this.loadCategories(),
                 this.isAdmin ? this.loadUsers() : Promise.resolve()
-            ]);
+            ];
+            if (this.canManageItems) {
+                tasks.push(this.loadLocations());
+            }
+            if (this.showQtyHistoryModal && this.selectedItemForHistory) {
+                tasks.push(this.loadQtyHistory());
+            }
+            await Promise.all(tasks);
+            this.syncOpenSelections();
+        },
+
+        syncOpenSelections() {
+            const latestItems = new Map(this.items.map(item => [String(item.id), item]));
+
+            if (this.selectedItemForQtyUpdate?.id && latestItems.has(String(this.selectedItemForQtyUpdate.id))) {
+                this.selectedItemForQtyUpdate = { ...latestItems.get(String(this.selectedItemForQtyUpdate.id)) };
+            }
+
+            if (this.selectedItemForHistory?.id && latestItems.has(String(this.selectedItemForHistory.id))) {
+                this.selectedItemForHistory = { ...latestItems.get(String(this.selectedItemForHistory.id)) };
+            }
+
+            if (this.selectedItemForLabel?.id && latestItems.has(String(this.selectedItemForLabel.id))) {
+                this.selectedItemForLabel = { ...latestItems.get(String(this.selectedItemForLabel.id)) };
+            }
+
+            if (this.bulkDeletePreviewItems.length > 0) {
+                const previewIds = new Set(this.bulkDeletePreviewItems.map(item => String(item.id)));
+                this.bulkDeletePreviewItems = this.items.filter(item => previewIds.has(String(item.id)));
+            }
         },
 
         async checkDataSync() {
